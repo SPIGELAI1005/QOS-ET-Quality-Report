@@ -233,7 +233,7 @@ export function AISummaryClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       </div>
 
       {/* Main Content Grid */}
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Main Content */}
         <div className="flex-1 space-y-6">
           <AIInsightsPanel
@@ -246,7 +246,7 @@ export function AISummaryClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         </div>
 
         {/* Filter Panel - Right Sidebar */}
-        <div className="w-80 flex-shrink-0">
+        <div className="flex-shrink-0">
           <FilterPanel
             monthlySiteKpis={monthlySiteKpis}
             filters={filters}

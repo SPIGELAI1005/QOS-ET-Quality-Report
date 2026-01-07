@@ -52,6 +52,9 @@ export function AuditManagementClient() {
       const [y] = monthStr.split("-").map(Number);
       if (y) years.add(y);
     });
+    // Always include 2025 and 2026 in the years list
+    years.add(2025);
+    years.add(2026);
     return {
       years: Array.from(years).sort((a, b) => b - a),
       lastMonthYear: sorted.length > 0 ? sorted[sorted.length - 1] : null,
@@ -60,16 +63,10 @@ export function AuditManagementClient() {
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
-    if (availableMonthsYears.lastMonthYear) {
-      const [y, m] = availableMonthsYears.lastMonthYear.split("-").map(Number);
-      setSelectedYear(y);
-      setSelectedMonth(m);
-      return;
-    }
-    const now = new Date();
-    setSelectedYear(now.getFullYear());
-    setSelectedMonth(now.getMonth() + 1);
-  }, [availableMonthsYears.lastMonthYear, selectedMonth, selectedYear]);
+    // Default to December 2025
+    setSelectedYear(2025);
+    setSelectedMonth(12);
+  }, [selectedMonth, selectedYear]);
 
   const lookbackPeriod = useMemo(() => {
     if (selectedMonth === null || selectedYear === null) {
@@ -86,7 +83,7 @@ export function AuditManagementClient() {
   }, [selectedMonth, selectedYear]);
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col lg:flex-row gap-6">
       <div className="flex-1 space-y-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -230,7 +227,7 @@ export function AuditManagementClient() {
         </Card>
       </div>
 
-      <div className="w-80 flex-shrink-0">
+      <div className="flex-shrink-0">
         <FilterPanel
           monthlySiteKpis={monthlySiteKpis}
           filters={filters}

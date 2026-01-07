@@ -4,12 +4,16 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, TrendingUp, Target, BarChart3, Sparkles, Shield } from "lucide-react";
+import { RoleAccessDialog } from "@/components/auth/role-access-dialog";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function Home() {
+  const { t } = useTranslation();
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showButton, setShowButton] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
 
   const handleAccessClick = () => {
     const video = videoRef.current;
@@ -21,16 +25,15 @@ export default function Home() {
     // Play the video
     video.play();
 
-    // When video ends, show last frame for 1 second, then navigate
+    // When video ends, show last frame and then open role selection popup
     video.onended = () => {
       // Seek to last frame
       video.currentTime = video.duration - 0.1;
       video.pause();
+      setIsPlaying(false);
 
-      // Wait 1 second, then navigate to dashboard
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 1000);
+      // Let the last frame "settle" visually, then show the popup
+      setTimeout(() => setIsRoleDialogOpen(true), 300);
     };
   };
 
@@ -75,9 +78,9 @@ export default function Home() {
       {/* Main Title - Top of page */}
       <div className="absolute top-8 left-1/2 -translate-x-1/2 text-center space-y-2 animate-fade-in z-20 w-full max-w-5xl px-4">
         <h1 className="text-xl md:text-2xl font-bold text-[#00FF00] mx-auto leading-tight tracking-tight drop-shadow-[0_2px_8px_rgba(0,255,0,0.3)]">
-          Empowering Excellence Through
+          {t.home.title}
           <span className="block mt-1 bg-gradient-to-r from-[#00FF00] via-[#00FF88] to-[#00FF00] bg-clip-text text-transparent">
-            Data-Driven Quality Management
+            {t.home.subtitle}
           </span>
         </h1>
       </div>
@@ -96,11 +99,11 @@ export default function Home() {
               <div className="p-4 rounded-full bg-gradient-to-br from-[#00FF00]/25 via-[#00FF00]/15 to-[#00FF00]/25 backdrop-blur-md border-2 border-[#00FF00]/40 group-hover:scale-105 group-hover:border-[#00FF00]/60 transition-all duration-300 relative z-10">
                 <TrendingUp className="h-9 w-9 text-[#00FF00] group-hover:scale-110 transition-transform duration-300" />
               </div>
-              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10">
-                Real-Time<br />PPM Tracking
+              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10 whitespace-pre-line">
+                {t.home.realTimePpmTracking}
               </h3>
               <p className="text-[0.95rem] text-[#00FF00]/85 leading-relaxed px-3 relative z-10">
-                Monitor Parts Per Million and defects related metrics across all sites with instant updates.
+                {t.home.realTimePpmDescription}
               </p>
             </div>
 
@@ -112,11 +115,11 @@ export default function Home() {
               <div className="p-4 rounded-full bg-gradient-to-br from-[#00FF00]/25 via-[#00FF00]/15 to-[#00FF00]/25 backdrop-blur-md border-2 border-[#00FF00]/40 group-hover:scale-105 group-hover:border-[#00FF00]/60 transition-all duration-300 relative z-10">
                 <Target className="h-9 w-9 text-[#00FF00] group-hover:scale-110 transition-transform duration-300" />
               </div>
-              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10">
-                Comprehensive<br />Analysis
+              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10 whitespace-pre-line">
+                {t.home.comprehensiveAnalysis}
               </h3>
               <p className="text-[0.95rem] text-[#00FF00]/85 leading-relaxed px-3 relative z-10">
-                Deep insights into customer, supplier, and internal quality performance.
+                {t.home.comprehensiveAnalysisDescription}
               </p>
             </div>
           </div>
@@ -134,11 +137,11 @@ export default function Home() {
               <div className="p-4 rounded-full bg-gradient-to-br from-[#00FF00]/25 via-[#00FF00]/15 to-[#00FF00]/25 backdrop-blur-md border-2 border-[#00FF00]/40 group-hover:scale-105 group-hover:border-[#00FF00]/60 transition-all duration-300 relative z-10">
                 <Sparkles className="h-9 w-9 text-[#00FF00] group-hover:scale-110 transition-transform duration-300" />
               </div>
-              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10">
-                AI-Powered<br />Insights
+              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10 whitespace-pre-line">
+                {t.home.aiPoweredInsights}
               </h3>
               <p className="text-[0.95rem] text-[#00FF00]/85 leading-relaxed px-3 relative z-10">
-                Get actionable recommendations powered by advanced machine data interpretation.
+                {t.home.aiPoweredInsightsDescription}
               </p>
             </div>
 
@@ -150,11 +153,11 @@ export default function Home() {
               <div className="p-4 rounded-full bg-gradient-to-br from-[#00FF00]/25 via-[#00FF00]/15 to-[#00FF00]/25 backdrop-blur-md border-2 border-[#00FF00]/40 group-hover:scale-105 group-hover:border-[#00FF00]/60 transition-all duration-300 relative z-10">
                 <Shield className="h-9 w-9 text-[#00FF00] group-hover:scale-110 transition-transform duration-300" />
               </div>
-              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10">
-                Quality<br />AI-ssurance
+              <h3 className="text-2xl font-bold text-[#00FF00] group-hover:text-[#00FF88] transition-colors duration-300 leading-tight relative z-10 whitespace-pre-line">
+                {t.home.qualityAssurance}
               </h3>
               <p className="text-[0.95rem] text-[#00FF00]/85 leading-relaxed px-3 relative z-10">
-                Comprehensive quality control and assurance across all operations using AI.
+                {t.home.qualityAssuranceDescription}
               </p>
             </div>
           </div>
@@ -174,7 +177,7 @@ export default function Home() {
                        flex items-center gap-2
                        before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-br before:from-[#00FF00]/20 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
             >
-              <span className="relative z-10 tracking-wide font-medium">Generate QOS Report ET</span>
+              <span className="relative z-10 tracking-wide font-medium">{t.home.generateReport}</span>
             </button>
           </div>
         )}
@@ -184,15 +187,27 @@ export default function Home() {
       <footer className="border-t-2 border-[#00FF00]/40 bg-gradient-to-br from-background/90 via-background/70 to-background/90 backdrop-blur-xl py-3 px-6 mt-auto z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center space-y-2 md:space-y-0">
           <p className="text-xs text-[#00FF00]/95 font-semibold tracking-wide">
-            © 2025 QOS ET Report. Driving Excellence in Operations and Quality.
+            {t.home.footerCopyright}
           </p>
           <div className="flex items-center space-x-2.5">
             <BarChart3 className="h-4 w-4 text-[#00FF00] animate-pulse" />
-            <span className="text-xs text-[#00FF00]/95 font-semibold tracking-wide">Quality Management System</span>
+            <span className="text-xs text-[#00FF00]/95 font-semibold tracking-wide">{t.home.qualityManagementSystem}</span>
           </div>
         </div>
       </footer>
       </div>
+
+      {/* Role login popup after intro video */}
+      <RoleAccessDialog
+        open={isRoleDialogOpen}
+        title={t.home.login}
+        description={t.home.loginDescription}
+        forceChoice
+        onAuthenticated={() => {
+          setIsRoleDialogOpen(false);
+          router.push("/dashboard");
+        }}
+      />
     </div>
   );
 }

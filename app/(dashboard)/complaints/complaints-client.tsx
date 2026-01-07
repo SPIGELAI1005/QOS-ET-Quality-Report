@@ -116,110 +116,115 @@ export function ComplaintsClient() {
         </p>
       </div>
 
-      <FilterPanel filters={filters} onFiltersChange={setFilters} monthlySiteKpis={monthlySiteKpis} />
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Total Complaints</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{totalComplaints.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Q1 + Q2 + Q3
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Customer Complaints (Q1)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {filteredKpis.reduce((sum, kpi) => sum + kpi.customerComplaintsQ1, 0).toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Supplier Complaints (Q2)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {filteredKpis.reduce((sum, kpi) => sum + kpi.supplierComplaintsQ2, 0).toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Complaints Trend</CardTitle>
-          <CardDescription>Monthly breakdown of Q1, Q2, and Q3 complaints</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={complaintsByMonth}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="Q1" fill="#ef4444" name="Customer (Q1)" />
-              <Bar dataKey="Q2" fill="#f59e0b" name="Supplier (Q2)" />
-              <Bar dataKey="Q3" fill="#3b82f6" name="Internal (Q3)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Complaints by Site and Month</CardTitle>
-          <CardDescription>Detailed breakdown of complaints</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Month</TableHead>
-                  <TableHead>Site Code</TableHead>
-                  <TableHead>Site Name</TableHead>
-                  <TableHead className="text-right">Q1 (Customer)</TableHead>
-                  <TableHead className="text-right">Q2 (Supplier)</TableHead>
-                  <TableHead className="text-right">Q3 (Internal)</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredKpis.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      No data matching the selected filters
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredKpis.map((kpi, index) => {
-                    const total = kpi.customerComplaintsQ1 + kpi.supplierComplaintsQ2 + kpi.internalComplaintsQ3;
-                    return (
-                      <TableRow key={`${kpi.siteCode}-${kpi.month}-${index}`}>
-                        <TableCell className="font-medium">{kpi.month}</TableCell>
-                        <TableCell>{kpi.siteCode}</TableCell>
-                        <TableCell>{kpi.siteName || "-"}</TableCell>
-                        <TableCell className="text-right">{kpi.customerComplaintsQ1}</TableCell>
-                        <TableCell className="text-right">{kpi.supplierComplaintsQ2}</TableCell>
-                        <TableCell className="text-right">{kpi.internalComplaintsQ3}</TableCell>
-                        <TableCell className="text-right font-semibold">{total}</TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex-1 space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Total Complaints</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{totalComplaints.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Q1 + Q2 + Q3</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Customer Complaints (Q1)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {filteredKpis.reduce((sum, kpi) => sum + kpi.customerComplaintsQ1, 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Supplier Complaints (Q2)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {filteredKpis.reduce((sum, kpi) => sum + kpi.supplierComplaintsQ2, 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Complaints Trend</CardTitle>
+              <CardDescription>Monthly breakdown of Q1, Q2, and Q3 complaints</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={complaintsByMonth}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="Q1" fill="#ef4444" name="Customer (Q1)" />
+                  <Bar dataKey="Q2" fill="#f59e0b" name="Supplier (Q2)" />
+                  <Bar dataKey="Q3" fill="#3b82f6" name="Internal (Q3)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Complaints by Site and Month</CardTitle>
+              <CardDescription>Detailed breakdown of complaints</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Month</TableHead>
+                      <TableHead>Site Code</TableHead>
+                      <TableHead>Site Name</TableHead>
+                      <TableHead className="text-right">Q1 (Customer)</TableHead>
+                      <TableHead className="text-right">Q2 (Supplier)</TableHead>
+                      <TableHead className="text-right">Q3 (Internal)</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredKpis.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">
+                          No data matching the selected filters
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredKpis.map((kpi, index) => {
+                        const total =
+                          kpi.customerComplaintsQ1 + kpi.supplierComplaintsQ2 + kpi.internalComplaintsQ3;
+                        return (
+                          <TableRow key={`${kpi.siteCode}-${kpi.month}-${index}`}>
+                            <TableCell className="font-medium">{kpi.month}</TableCell>
+                            <TableCell>{kpi.siteCode}</TableCell>
+                            <TableCell>{kpi.siteName || "-"}</TableCell>
+                            <TableCell className="text-right">{kpi.customerComplaintsQ1}</TableCell>
+                            <TableCell className="text-right">{kpi.supplierComplaintsQ2}</TableCell>
+                            <TableCell className="text-right">{kpi.internalComplaintsQ3}</TableCell>
+                            <TableCell className="text-right font-semibold">{total}</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex-shrink-0">
+          <FilterPanel filters={filters} onFiltersChange={setFilters} monthlySiteKpis={monthlySiteKpis} />
+        </div>
+      </div>
     </div>
   );
 }

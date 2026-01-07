@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2026-01-06
+**Type**: Added
+
+**Description**: Added simple role-based access (Reader/Editor/Admin) with role login popup and protected upload/editing features
+
+**Details**:
+- Added a lightweight role system stored in `localStorage` (no email/SSO):
+  - **Reader** (default) – no password, read-only access
+  - **Editor** – password required (`Edit`)
+  - **Admin** – password required (`QOSET`)
+- Home page (`/`) now shows a **role login popup** after the intro video ends (last frame), before navigating to `/dashboard`
+- Header (TopBar) now provides a **role switch dropdown** under the user control; Editor/Admin selections trigger the password popup
+- Enforced Reader restrictions:
+  - **Upload Data** navigation is hidden for Reader
+  - `/upload` is blocked for Reader (Access Denied screen)
+- Role popup uses a portal to `document.body` so it is always centered with a blurred backdrop on every page (prevents clipping/positioning issues)
+
+**Files Added**:
+- `lib/auth/roles.ts`
+- `components/auth/role-access-dialog.tsx`
+
+**Files Modified**:
+- `app/page.tsx`
+- `components/layout/topbar.tsx`
+- `components/layout/sidebar.tsx`
+- `app/(dashboard)/upload/page.tsx`
+
+**Breaking Changes**: None
+
+---
+
+### Changed - 2026-01-06
+**Type**: Changed
+
+**Description**: Improved responsiveness and added collapsible side panels to maximize usable screen space
+
+**Details**:
+- Added **collapse/expand controls**:
+  - Left sidebar menu collapses into an icon rail (state persisted)
+  - Right filter panel can be hidden/shown (state persisted)
+- Improved UX with **smoother animations** for panel hide/show (width transition + fade/slide)
+- Improved responsive reflow across dashboard pages:
+  - Main layouts switch to side-by-side at `lg` and stack on smaller screens
+  - Fixed hard-coded `grid-cols-4` blocks to be responsive (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`)
+- Ensured charts/layout re-measure correctly after panel toggles (dispatch resize)
+
+**Files Modified**:
+- `components/layout/sidebar.tsx`
+- `components/dashboard/filter-panel.tsx`
+- `app/(dashboard)/dashboard/dashboard-client.tsx`
+- `app/(dashboard)/ppm/ppm-client.tsx`
+- `app/(dashboard)/complaints/complaints-client.tsx`
+- `app/(dashboard)/ai-summary/ai-summary-client.tsx`
+- `app/(dashboard)/audit-management/audit-management-client.tsx`
+- `app/(dashboard)/cost-poor-quality/cost-poor-quality-client.tsx`
+- `app/(dashboard)/deviations/deviations-client.tsx`
+- `app/(dashboard)/ppaps/ppaps-client.tsx`
+- `app/(dashboard)/warranties-costs/warranties-costs-client.tsx`
+
+**Breaking Changes**: None
+
+---
+
 ### Added - 2025-12-14
 **Type**: Added
 

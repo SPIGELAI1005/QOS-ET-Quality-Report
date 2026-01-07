@@ -12,10 +12,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarIcon, PanelRightClose, PanelRightOpen, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { MonthlySiteKpi } from "@/lib/domain/types";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface PlantData {
   code: string;
@@ -82,8 +83,25 @@ export function FilterPanel({
   showComplaintTypes = true,
   showNotificationTypes = true,
 }: FilterPanelProps) {
+  const { t } = useTranslation();
   const [plantsData, setPlantsData] = useState<PlantData[]>([]);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const hasInitialized = useRef(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("qos-et-filters-collapsed");
+    setIsCollapsed(stored === "1");
+  }, []);
+
+  const toggleCollapsed = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("qos-et-filters-collapsed", next ? "1" : "0");
+      // Force chart/layout re-measure (e.g. Recharts) when filter panel width changes
+      setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
+      return next;
+    });
+  };
 
   // Load plants from API
   useEffect(() => {
@@ -314,12 +332,48 @@ export function FilterPanel({
   };
 
   return (
-    <div className="w-80 space-y-4">
+    <div
+      className={cn(
+        "flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out",
+        isCollapsed ? "w-12" : "w-full sm:w-80"
+      )}
+    >
+      <div className={cn("flex items-center justify-between", isCollapsed ? "justify-center" : "mb-4")}>
+        {!isCollapsed && (
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <SlidersHorizontal className="h-4 w-4" />
+            {t.common.filter}
+          </div>
+        )}
+
+        <Button
+          type="button"
+          variant="outline"
+          size={isCollapsed ? "icon" : "sm"}
+          className={cn(isCollapsed ? "h-10 w-10" : "h-9")}
+          onClick={toggleCollapsed}
+          aria-label={isCollapsed ? "Show filters" : "Hide filters"}
+          title={isCollapsed ? "Show filters" : "Hide filters"}
+        >
+          {isCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+          {!isCollapsed && <span>{t.common.close}</span>}
+        </Button>
+      </div>
+
+      <div
+        className={cn(
+          "space-y-4 transition-all duration-300 ease-in-out",
+          isCollapsed ? "opacity-0 -translate-x-2 pointer-events-none" : "opacity-100 translate-x-0"
+        )}
+        aria-hidden={isCollapsed}
+        // @ts-expect-error inert is not in React types in some TS versions
+        inert={isCollapsed ? "" : undefined}
+      >
       {/* PLANT Section */}
       <Card className="bg-card/50 border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            PLANT
+            {t.filterPanel.plant}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -331,20 +385,22 @@ export function FilterPanel({
               className="w-full justify-start"
               onClick={filters.selectedPlants.length === availablePlants.length ? clearAllPlants : selectAllPlants}
             >
-              <div className={cn(
+                  <div
+                    className={cn(
                 "h-3 w-3 rounded-full border-2 mr-2",
                 filters.selectedPlants.length === availablePlants.length
                   ? "bg-primary border-primary" 
                   : "border-muted-foreground"
-              )} />
-              {filters.selectedPlants.length === availablePlants.length ? "Clear Selection" : "Select All"}
+                    )}
+                  />
+              {filters.selectedPlants.length === availablePlants.length ? t.common.clearSelection : t.common.selectAll}
             </Button>
           )}
 
           {/* Plant List - Two Columns */}
           {availablePlants.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-4">
-              No plants available. {monthlySiteKpis.length === 0 ? "Upload data first." : "Loading plants..."}
+              {t.filterPanel.noPlantsAvailable} {monthlySiteKpis.length === 0 ? t.filterPanel.uploadDataFirst : t.common.loading}
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-2">
@@ -361,10 +417,12 @@ export function FilterPanel({
                     className="w-full justify-start text-xs py-1.5 px-2"
                     onClick={() => togglePlant(plant.code)}
                   >
-                    <div className={cn(
+                        <div
+                          className={cn(
                       "h-3 w-3 rounded-full mr-1.5 flex-shrink-0",
                       isSelected ? color : "border-2 border-muted-foreground"
-                    )} />
+                          )}
+                        />
                     <span className="flex items-center gap-1 whitespace-nowrap">
                       <span className="font-medium">{plant.code}</span>
                       {plantData.abbreviation && (
@@ -383,7 +441,7 @@ export function FilterPanel({
       <Card className="bg-card/50 border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            QUICK ACCESS
+            {t.filterPanel.quickAccess}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -396,7 +454,7 @@ export function FilterPanel({
               onClick={filterBySapP01}
             >
               <span className="mr-2">📊</span>
-              SAP P01 Sites
+              {t.filterPanel.sapP01Sites}
             </Button>
             <Button
               variant="outline"
@@ -405,7 +463,7 @@ export function FilterPanel({
               onClick={filterBySapPS4}
             >
               <span className="mr-2">📊</span>
-              SAP PS4 Sites
+              {t.filterPanel.sapPS4Sites}
             </Button>
             <Button
               variant="outline"
@@ -414,7 +472,7 @@ export function FilterPanel({
               onClick={filterByAX}
             >
               <span className="mr-2">📊</span>
-              AX Sites
+              {t.filterPanel.axSites}
             </Button>
             <Button
               variant="outline"
@@ -423,7 +481,7 @@ export function FilterPanel({
               onClick={filterByAutomotive}
             >
               <span className="mr-2">🚗</span>
-              Automotive Sites
+              {t.filterPanel.automotiveSites}
             </Button>
             <Button
               variant="outline"
@@ -432,12 +490,12 @@ export function FilterPanel({
               onClick={filterByAftermarket}
             >
               <span className="mr-2">📦</span>
-              Aftermarket Sites
+              {t.filterPanel.aftermarketSites}
             </Button>
           </div>
 
           <div className="border-t pt-3">
-            <p className="text-xs text-muted-foreground mb-2 font-medium">Individual Plants</p>
+            <p className="text-xs text-muted-foreground mb-2 font-medium">{t.filterPanel.individualPlants}</p>
           </div>
 
           {availablePlants.map((plant) => {
@@ -449,10 +507,12 @@ export function FilterPanel({
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors"
                 onClick={() => togglePlant(plant.code)}
               >
-                <div className={cn(
+                    <div
+                      className={cn(
                   "h-8 w-8 rounded-lg flex items-center justify-center text-sm font-semibold text-white",
                   color
-                )}>
+                      )}
+                    >
                   {plant.code}
                 </div>
                 <div className="flex-1">
@@ -461,7 +521,11 @@ export function FilterPanel({
                     {plantData.abbreviation && ` (${plantData.abbreviation})`}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {plantData.location || plantData.city || plantData.country || plant.location || "No location data"}
+                        {plantData.location ||
+                          plantData.city ||
+                          plantData.country ||
+                          plant.location ||
+                          "No location data"}
                     {plantData.erp && ` • ERP: ${plantData.erp}`}
                   </p>
                 </div>
@@ -476,22 +540,23 @@ export function FilterPanel({
         <Card className="bg-card/50 border-border">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Complaint Types
+              {t.filterPanel.complaintTypes}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {["Customer", "Supplier", "Internal"].map((type) => (
-              <div key={type} className="flex items-center space-x-2">
+            {[
+              { key: "Customer", label: t.filterPanel.customer },
+              { key: "Supplier", label: t.filterPanel.supplier },
+              { key: "Internal", label: t.filterPanel.internal }
+            ].map(({ key, label }) => (
+              <div key={key} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`complaint-${type}`}
-                  checked={filters.selectedComplaintTypes.includes(type)}
-                  onCheckedChange={() => toggleComplaintType(type)}
+                  id={`complaint-${key}`}
+                  checked={filters.selectedComplaintTypes.includes(key)}
+                  onCheckedChange={() => toggleComplaintType(key)}
                 />
-                <Label
-                  htmlFor={`complaint-${type}`}
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  {type}
+                    <Label htmlFor={`complaint-${key}`} className="text-sm font-medium cursor-pointer">
+                  {label}
                 </Label>
               </div>
             ))}
@@ -504,12 +569,12 @@ export function FilterPanel({
         <Card className="bg-card/50 border-border">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Notification Types
+              {t.filterPanel.notificationTypes}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Customer Complaints</p>
+            <p className="text-xs text-muted-foreground mb-2">{t.filterPanel.customerComplaints}</p>
             <div className="space-y-2 pl-4">
               {["Q1"].map((type) => (
                 <div key={type} className="flex items-center space-x-2">
@@ -527,7 +592,7 @@ export function FilterPanel({
           </div>
 
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Supplier Complaints</p>
+            <p className="text-xs text-muted-foreground mb-2">{t.filterPanel.supplierComplaints}</p>
             <div className="space-y-2 pl-4">
               {["Q2"].map((type) => (
                 <div key={type} className="flex items-center space-x-2">
@@ -545,7 +610,7 @@ export function FilterPanel({
           </div>
 
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Internal Complaints</p>
+            <p className="text-xs text-muted-foreground mb-2">{t.filterPanel.internalComplaints}</p>
             <div className="space-y-2 pl-4">
               {["Q3"].map((type) => (
                 <div key={type} className="flex items-center space-x-2">
@@ -563,7 +628,7 @@ export function FilterPanel({
           </div>
 
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Deviations</p>
+            <p className="text-xs text-muted-foreground mb-2">{t.filterPanel.deviations}</p>
             <div className="space-y-2 pl-4">
               {["D1", "D2", "D3"].map((type) => (
                 <div key={type} className="flex items-center space-x-2">
@@ -581,7 +646,7 @@ export function FilterPanel({
           </div>
 
           <div>
-            <p className="text-xs text-muted-foreground mb-2">PPAP</p>
+            <p className="text-xs text-muted-foreground mb-2">{t.filterPanel.ppap}</p>
             <div className="space-y-2 pl-4">
               {["P1", "P2", "P3"].map((type) => (
                 <div key={type} className="flex items-center space-x-2">
@@ -605,37 +670,30 @@ export function FilterPanel({
       <Card className="bg-card/50 border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Date Range
+            {t.filterPanel.dateRange}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="date-from" className="text-xs">From Date</Label>
+                <Label htmlFor="date-from" className="text-xs">
+                  {t.filterPanel.fromDate}
+                </Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   id="date-from"
                   variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !filters.dateFrom && "text-muted-foreground"
-                  )}
+                      className={cn("w-full justify-start text-left font-normal", !filters.dateFrom && "text-muted-foreground")}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.dateFrom ? (
-                    format(filters.dateFrom, "PPP")
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
+                      {filters.dateFrom ? format(filters.dateFrom, "PPP") : <span>{t.filterPanel.pickDate}</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={filters.dateFrom || undefined}
-                  onSelect={(date: Date | undefined) =>
-                    onFiltersChange({ ...filters, dateFrom: date || null })
-                  }
+                      onSelect={(date: Date | undefined) => onFiltersChange({ ...filters, dateFrom: date || null })}
                   initialFocus
                 />
               </PopoverContent>
@@ -648,38 +706,31 @@ export function FilterPanel({
                 onClick={() => onFiltersChange({ ...filters, dateFrom: null })}
               >
                 <X className="h-3 w-3 mr-1" />
-                Clear
+                {t.common.clear}
               </Button>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="date-to" className="text-xs">To Date</Label>
+                <Label htmlFor="date-to" className="text-xs">
+                  {t.filterPanel.toDate}
+                </Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   id="date-to"
                   variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !filters.dateTo && "text-muted-foreground"
-                  )}
+                      className={cn("w-full justify-start text-left font-normal", !filters.dateTo && "text-muted-foreground")}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.dateTo ? (
-                    format(filters.dateTo, "PPP")
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
+                      {filters.dateTo ? format(filters.dateTo, "PPP") : <span>{t.filterPanel.pickDate}</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={filters.dateTo || undefined}
-                  onSelect={(date: Date | undefined) =>
-                    onFiltersChange({ ...filters, dateTo: date || null })
-                  }
+                      onSelect={(date: Date | undefined) => onFiltersChange({ ...filters, dateTo: date || null })}
                   initialFocus
                 />
               </PopoverContent>
@@ -692,7 +743,7 @@ export function FilterPanel({
                 onClick={() => onFiltersChange({ ...filters, dateTo: null })}
               >
                 <X className="h-3 w-3 mr-1" />
-                Clear
+                {t.common.clear}
               </Button>
             )}
           </div>
@@ -700,13 +751,10 @@ export function FilterPanel({
       </Card>
 
       {/* Clear All Filters Button */}
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={clearAllFilters}
-      >
-        Clear All Filters
+          <Button variant="outline" className="w-full" onClick={clearAllFilters}>
+        {t.filterPanel.clearAllFilters}
       </Button>
+      </div>
     </div>
   );
 }

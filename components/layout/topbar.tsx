@@ -3,52 +3,50 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Languages, SunMoon, UserCircle2 } from "lucide-react";
-
-type LanguageKey = "en" | "de" | "it";
-type RoleKey = "reader" | "editor" | "admin";
+import { RoleAccessDialog } from "@/components/auth/role-access-dialog";
+import { ROLE_CHANGED_EVENT, ROLE_STORAGE_KEY, type RoleKey } from "@/lib/auth/roles";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { type LanguageKey, LANGUAGE_CHANGED_EVENT } from "@/lib/i18n/translations";
 
 export function TopBar() {
   const { theme, setTheme } = useTheme();
+  const { t, language, setLanguage } = useTranslation();
 
-  const [language, setLanguage] = useState<LanguageKey>("en");
   const [role, setRole] = useState<RoleKey>("reader");
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  const [pendingRole, setPendingRole] = useState<RoleKey | null>(null);
   const themeValue = (theme === "light" ? "light" : "dark") as "dark" | "light";
 
   useEffect(() => {
-    const storedLang = (localStorage.getItem("qos-et-language") as LanguageKey | null) || "en";
-    const storedRole = (localStorage.getItem("qos-et-role") as RoleKey | null) || "reader";
-
-    setLanguage(storedLang);
+    const storedRole = (localStorage.getItem(ROLE_STORAGE_KEY) as RoleKey | null) || "reader";
     setRole(storedRole);
-
-    // keep the document lang aligned (simple placeholder for later i18n)
-    document.documentElement.lang = storedLang;
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("qos-et-language", language);
-    document.documentElement.lang = language;
-  }, [language]);
+    const loadRole = () => {
+      const storedRole = (localStorage.getItem(ROLE_STORAGE_KEY) as RoleKey | null) || "reader";
+      setRole(storedRole);
+    };
 
-  useEffect(() => {
-    localStorage.setItem("qos-et-role", role);
-  }, [role]);
+    const onRoleChanged = () => loadRole();
+    window.addEventListener(ROLE_CHANGED_EVENT, onRoleChanged);
+    return () => window.removeEventListener(ROLE_CHANGED_EVENT, onRoleChanged);
+  }, []);
 
   const languageLabel = useMemo(() => {
-    if (language === "de") return "German";
-    if (language === "it") return "Italian";
+    if (language === "de") return "Deutsch";
+    if (language === "it") return "Italiano";
     return "English";
   }, [language]);
 
   const roleLabel = useMemo(() => {
-    if (role === "admin") return "Admin";
-    if (role === "editor") return "Editor";
-    return "Reader";
-  }, [role]);
+    return t.common[role === "admin" ? "admin" : role === "editor" ? "editor" : "reader"];
+  }, [role, t]);
 
-  const themeLabel = themeValue === "light" ? "Light" : "Dark";
+  const themeLabel = themeValue === "light" ? t.common.light : t.common.dark;
 
   return (
     <header
@@ -58,7 +56,7 @@ export function TopBar() {
       )}
     >
       <div className="flex w-full items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-foreground">QOS ET Quality Report</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t.header.title}</h1>
 
         <div className="flex items-center gap-4">
           {/* Language */}
@@ -66,13 +64,13 @@ export function TopBar() {
             <SelectTrigger className="h-10 w-[190px] border-border/60 bg-background/40 backdrop-blur">
               <div className="flex items-center gap-2">
                 <Languages className="h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="English" />
+                <SelectValue placeholder={languageLabel} />
               </div>
             </SelectTrigger>
             <SelectContent align="end">
-              <SelectItem value="en">English (Default)</SelectItem>
-              <SelectItem value="de">German</SelectItem>
-              <SelectItem value="it">Italian</SelectItem>
+              <SelectItem value="en">English {language === "en" ? "(Default)" : ""}</SelectItem>
+              <SelectItem value="de">Deutsch {language === "de" ? "(Standard)" : ""}</SelectItem>
+              <SelectItem value="it">Italiano {language === "it" ? "(Predefinito)" : ""}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -85,27 +83,55 @@ export function TopBar() {
               </div>
             </SelectTrigger>
             <SelectContent align="end">
-              <SelectItem value="dark">Dark (Default)</SelectItem>
-              <SelectItem value="light">Light</SelectItem>
+              <SelectItem value="dark">{t.common.dark} {themeValue === "dark" ? `(${language === "de" ? "Standard" : "Default"})` : ""}</SelectItem>
+              <SelectItem value="light">{t.common.light}</SelectItem>
             </SelectContent>
           </Select>
 
-          {/* Profile */}
-          <Select value={role} onValueChange={(v: RoleKey) => setRole(v)}>
-            <SelectTrigger className="h-10 w-[170px] border-border/60 bg-background/40 backdrop-blur">
+          {/* Profile / Role switch (dropdown under user icon) */}
+          <Select
+            value={role}
+            onValueChange={(next: RoleKey) => {
+              if (next === "reader") {
+                localStorage.setItem(ROLE_STORAGE_KEY, "reader");
+                window.dispatchEvent(new Event(ROLE_CHANGED_EVENT));
+              } else {
+                // open password dialog and preset role; do not change select yet
+                setPendingRole(next);
+                setIsRoleDialogOpen(true);
+              }
+            }}
+          >
+            <SelectTrigger className="h-10 w-[190px] border-border/60 bg-background/40 backdrop-blur justify-start">
               <div className="flex items-center gap-2">
                 <UserCircle2 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{roleLabel}</span>
+                <SelectValue placeholder={roleLabel} />
               </div>
             </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="reader">Reader (Default)</SelectItem>
-              <SelectItem value="editor">Editor</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+            <SelectContent align="end" className="z-[2001]">
+              <SelectItem value="reader">{t.common.reader} {role === "reader" ? `(${language === "de" ? "Standard" : "Default"})` : ""}</SelectItem>
+              <SelectItem value="editor">{t.common.editor}</SelectItem>
+              <SelectItem value="admin">{t.common.admin}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
+
+      <RoleAccessDialog
+        open={isRoleDialogOpen}
+        title={t.roleAccess.switchRole}
+        description={t.roleAccess.selectRoleDescription}
+        forceChoice
+        initialRole={pendingRole ?? undefined}
+        onClose={() => setIsRoleDialogOpen(false)}
+        onAuthenticated={() => {
+          setIsRoleDialogOpen(false);
+          setPendingRole(null);
+          // After successful auth, ensure the Select shows the new role (reload from storage)
+          const storedRole = (localStorage.getItem(ROLE_STORAGE_KEY) as RoleKey | null) || "reader";
+          setRole(storedRole);
+        }}
+      />
     </header>
   );
 }

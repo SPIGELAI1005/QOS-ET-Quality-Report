@@ -135,91 +135,97 @@ export function PPMClient() {
         </p>
       </div>
 
-      <FilterPanel filters={filters} onFiltersChange={setFilters} monthlySiteKpis={monthlySiteKpis} />
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex-1 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>PPM Trend by Site</CardTitle>
+              <CardDescription>Customer and Supplier PPM trends over time</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  {uniqueSites.map((site, index) => (
+                    <Line
+                      key={`${site}_customer`}
+                      type="monotone"
+                      dataKey={`${site}_customer`}
+                      stroke={`hsl(${(index * 60) % 360}, 70%, 50%)`}
+                      name={`${site} Customer`}
+                      strokeWidth={2}
+                    />
+                  ))}
+                  {uniqueSites.map((site, index) => (
+                    <Line
+                      key={`${site}_supplier`}
+                      type="monotone"
+                      dataKey={`${site}_supplier`}
+                      stroke={`hsl(${(index * 60) % 360}, 70%, 30%)`}
+                      name={`${site} Supplier`}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>PPM Trend by Site</CardTitle>
-          <CardDescription>Customer and Supplier PPM trends over time</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              {uniqueSites.map((site, index) => (
-                <Line
-                  key={`${site}_customer`}
-                  type="monotone"
-                  dataKey={`${site}_customer`}
-                  stroke={`hsl(${(index * 60) % 360}, 70%, 50%)`}
-                  name={`${site} Customer`}
-                  strokeWidth={2}
-                />
-              ))}
-              {uniqueSites.map((site, index) => (
-                <Line
-                  key={`${site}_supplier`}
-                  type="monotone"
-                  dataKey={`${site}_supplier`}
-                  stroke={`hsl(${(index * 60) % 360}, 70%, 30%)`}
-                  name={`${site} Supplier`}
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>PPM by Site and Month</CardTitle>
-          <CardDescription>Detailed breakdown of PPM metrics</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Month</TableHead>
-                  <TableHead>Site Code</TableHead>
-                  <TableHead>Site Name</TableHead>
-                  <TableHead className="text-right">Customer PPM</TableHead>
-                  <TableHead className="text-right">Supplier PPM</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ppmBySiteMonth.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No data matching the selected filters
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  ppmBySiteMonth.map((item, index) => (
-                    <TableRow key={`${item.siteCode}-${item.month}-${index}`}>
-                      <TableCell className="font-medium">{item.month}</TableCell>
-                      <TableCell>{item.siteCode}</TableCell>
-                      <TableCell>{item.siteName}</TableCell>
-                      <TableCell className="text-right">
-                        {item.customerPpm > 0 ? item.customerPpm.toFixed(2) : "N/A"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.supplierPpm > 0 ? item.supplierPpm.toFixed(2) : "N/A"}
-                      </TableCell>
+          <Card>
+            <CardHeader>
+              <CardTitle>PPM by Site and Month</CardTitle>
+              <CardDescription>Detailed breakdown of PPM metrics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Month</TableHead>
+                      <TableHead>Site Code</TableHead>
+                      <TableHead>Site Name</TableHead>
+                      <TableHead className="text-right">Customer PPM</TableHead>
+                      <TableHead className="text-right">Supplier PPM</TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {ppmBySiteMonth.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          No data matching the selected filters
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      ppmBySiteMonth.map((item, index) => (
+                        <TableRow key={`${item.siteCode}-${item.month}-${index}`}>
+                          <TableCell className="font-medium">{item.month}</TableCell>
+                          <TableCell>{item.siteCode}</TableCell>
+                          <TableCell>{item.siteName}</TableCell>
+                          <TableCell className="text-right">
+                            {item.customerPpm > 0 ? item.customerPpm.toFixed(2) : "N/A"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.supplierPpm > 0 ? item.supplierPpm.toFixed(2) : "N/A"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex-shrink-0">
+          <FilterPanel filters={filters} onFiltersChange={setFilters} monthlySiteKpis={monthlySiteKpis} />
+        </div>
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
   Popover,
   PopoverContent,
@@ -109,6 +110,7 @@ interface TrendData {
 }
 
 export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: propsPpm, viewMode = "full" }: DashboardClientProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const isCustomerView = viewMode === "customer";
   const isSupplierView = viewMode === "supplier";
@@ -198,7 +200,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     const city = plant?.city || plant?.location || '';
     
     if (city) {
-      return includePrefix ? `Site ${siteCode} (${city})` : `${siteCode} (${city})`;
+      return includePrefix ? `${t.common.site || "Site"} ${siteCode} (${city})` : `${siteCode} (${city})`;
     }
     
     // Fallback: try to extract from siteName in KPIs
@@ -211,12 +213,12 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       const words = cityFromName.split(/\s+/).filter(w => w.length > 0);
       if (words.length > 0 && words[0].length >= 3) {
         const extractedCity = words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
-        return includePrefix ? `Site ${siteCode} (${extractedCity})` : `${siteCode} (${extractedCity})`;
+        return includePrefix ? `${t.common.site} ${siteCode} (${extractedCity})` : `${siteCode} (${extractedCity})`;
       }
     }
     
     // Final fallback: just the site code
-    return includePrefix ? `Site ${siteCode}` : siteCode;
+    return includePrefix ? `${t.common.site} ${siteCode}` : siteCode;
   }, [plantsData, monthlySiteKpis]);
 
   // Custom Plant Legend Component - matches "Individual Plants" style from Filter Panel
@@ -249,7 +251,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg p-1"
               )}
               onClick={() => onPlantClick?.(isSelected ? null : site)}
-              title={isSelected ? `Click to show all plants` : `Click to filter by ${city || site}`}
+              title={isSelected ? t.common.clickToShowAll : `${t.common.clickToFilterBy} ${city || site}`}
             >
               <div className={cn(
                 "h-6 w-6 rounded flex items-center justify-center text-xs font-semibold text-white flex-shrink-0",
@@ -262,7 +264,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                 "text-sm whitespace-nowrap",
                 isSelected ? "text-primary font-semibold" : "text-foreground"
               )}>
-                {city || `Site ${site}`}
+                {city || `${t.common.site} ${site}`}
               </span>
             </div>
           );
@@ -276,11 +278,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     if (types.length === 0) return null;
     
     const typeLabels: Record<string, string> = {
-      Q1: "Customer Complaints",
-      Q2: "Supplier Complaints",
-      Q3: "Internal Complaints",
-      D: "Deviations",
-      P: "PPAP",
+      Q1: t.dashboard.customerComplaints,
+      Q2: t.dashboard.supplierComplaints,
+      Q3: t.dashboard.internalComplaints,
+      D: t.filterPanel.deviations,
+      P: t.filterPanel.ppap,
     };
     
     return (
@@ -423,6 +425,10 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       years.add(year);
     });
     
+    // Always include 2025 and 2026 in the years list
+    years.add(2025);
+    years.add(2026);
+    
     return {
       months: Array.from(months).sort((a, b) => a - b),
       years: Array.from(years).sort((a, b) => b - a), // Descending (newest first)
@@ -431,21 +437,14 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     };
   }, [kpis]);
 
-  // Initialize selected month/year to last available if not set
+  // Initialize selected month/year to January 2026
   useEffect(() => {
     if (selectedMonth === null || selectedYear === null) {
-      if (availableMonthsYears.lastMonthYear) {
-        const [year, month] = availableMonthsYears.lastMonthYear.split('-').map(Number);
-        setSelectedYear(year);
-        setSelectedMonth(month);
-      } else {
-        // Fallback to current date if no data
-        const currentDate = new Date();
-        setSelectedYear(currentDate.getFullYear());
-        setSelectedMonth(currentDate.getMonth() + 1);
-      }
+      // Default to January 2026
+      setSelectedYear(2026);
+      setSelectedMonth(1);
     }
-  }, [availableMonthsYears.lastMonthYear, selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear]);
 
   // Calculate total sites from all KPIs (unfiltered)
   // Total ET Sites is 22
@@ -2229,7 +2228,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   }, []);
 
   // Get month name for display
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthNames = t.common.months;
   const selectedMonthName = selectedMonth !== null ? monthNames[selectedMonth - 1] : '';
 
   // Enhanced Metric Tile Component
@@ -2444,7 +2443,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   };
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col lg:flex-row gap-6">
       {/* Main Content */}
       <div className="flex-1 space-y-6">
         {/* Header */}
@@ -2452,10 +2451,10 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-bold tracking-tight">
               {isCustomerView
-                ? "Customer Performance YTD //"
+                ? `${t.dashboard.customerPerformance} YTD //`
                 : isSupplierView
-                  ? "Supplier Performance YTD //"
-                  : "QOS ET Dashboard YTD //"}
+                  ? `${t.dashboard.supplierPerformance} YTD //`
+                  : `${t.dashboard.title}`}
             </h1>
             {selectedMonth !== null && selectedYear !== null && (
               <div className="flex items-center gap-2">
@@ -2494,16 +2493,16 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           </div>
           <p className="text-muted-foreground mt-2">
             {isCustomerView
-              ? "Customer Performance"
+              ? t.dashboard.customerPerformance
               : isSupplierView
-                ? "Supplier Performance"
-                : "Customer + Supplier Performance • Cost Performance • Internal Performance"}
+                ? t.dashboard.supplierPerformance
+                : t.dashboard.customerSupplierPerformance}
           </p>
           {selectedMonth !== null && selectedYear !== null && (
             <p className="text-xs text-muted-foreground mt-1">
-              Showing 12-month lookback from {selectedMonthName} {selectedYear}
+              {t.dashboard.showing12MonthLookback} {selectedMonthName} {selectedYear}
               {lookbackPeriod.startMonthStr !== lookbackPeriod.endMonthStr && (
-                <> ({lookbackPeriod.startMonthStr} to {lookbackPeriod.endMonthStr})</>
+                <> ({lookbackPeriod.startMonthStr} {t.common.to} {lookbackPeriod.endMonthStr})</>
               )}
             </p>
           )}
@@ -2513,7 +2512,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       <div className="space-y-2">
         {/* Headings */}
         <h2 className="text-lg font-semibold text-foreground">
-          {isSupplierView ? "YTD Supplier Metrics" : "YTD Customer Metrics"}
+          {isSupplierView ? t.dashboard.ytdSupplierMetrics : t.dashboard.ytdCustomerMetrics}
         </h2>
         
         {/* Metrics and Sidebar Grid - Perfectly Aligned */}
@@ -2527,9 +2526,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                 style={{ gridAutoRows: "1fr" }}
               >
           <MetricTile
-            title="Customer Complaints"
+            title={t.dashboard.customerComplaints}
             value={customerMetrics.complaints.value}
-            subtitle="Q1 notifications"
+            subtitle={t.dashboard.q1Notifications}
             icon={AlertTriangle}
             color="#06b6d4"
             trend={customerMetrics.complaints}
@@ -2544,11 +2543,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             }}
           />
           <MetricTile
-            title="Customer Deliveries"
+            title={t.dashboard.customerDeliveries}
             value={customerMetrics.deliveries.value > 0 
               ? `${formatGermanNumber(customerMetrics.deliveries.value / 1_000_000, 2)}M`
               : 'N/A'}
-            subtitle="Parts shipped"
+            subtitle={t.dashboard.partsShipped}
             icon={Package}
             color="#00BCD4"
             trend={customerMetrics.deliveries}
@@ -2561,9 +2560,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             }}
           />
           <MetricTile
-            title="Customer Defective Parts"
+            title={t.dashboard.customerDefectiveParts}
             value={customerMetrics.defective.value}
-            subtitle="Q1 defective"
+            subtitle={t.dashboard.q1Defective}
             icon={TrendingDown}
             color="#F44336"
             trend={customerMetrics.defective}
@@ -2654,11 +2653,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             }
           />
           <MetricTile
-            title="Customer PPM"
+            title={t.dashboard.customerPpm}
             value={customerMetrics.ppm.value > 0 
               ? formatGermanNumber(customerMetrics.ppm.value, 2)
               : 'N/A'}
-            subtitle="Parts per million"
+            subtitle={t.dashboard.partsPerMillion}
             icon={Activity}
             color="#4CAF50"
             trend={customerMetrics.ppm}
@@ -2676,9 +2675,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             {isSupplierView && (
               <div className={cn("grid gap-4 auto-rows-fr", "md:grid-cols-2")} style={{ gridAutoRows: "1fr" }}>
                 <MetricTile
-                  title="Supplier Complaints"
+                  title={t.dashboard.supplierComplaints}
                   value={supplierMetrics.complaints.value}
-                  subtitle="Q2 notifications"
+                  subtitle={t.dashboard.q2Notifications}
                   icon={AlertTriangle}
                   color="#14b8a6"
                   trend={supplierMetrics.complaints}
@@ -2691,13 +2690,13 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                   }}
                 />
                 <MetricTile
-                  title="Supplier Deliveries"
+                  title={t.dashboard.supplierDeliveries}
                   value={
                     supplierMetrics.deliveries.value > 0
                       ? `${formatGermanNumber(supplierMetrics.deliveries.value / 1_000_000, 2)}M`
                       : "N/A"
                   }
-                  subtitle="Parts shipped"
+                  subtitle={t.dashboard.partsReceived}
                   icon={Package}
                   color="#00BCD4"
                   trend={supplierMetrics.deliveries}
@@ -2709,9 +2708,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                   }}
                 />
                 <MetricTile
-                  title="Supplier Defective Parts"
+                  title={t.dashboard.supplierDefectiveParts}
                   value={supplierMetrics.defective.value}
-                  subtitle="Q2 defective"
+                  subtitle={t.dashboard.q2Defective}
                   icon={TrendingDown}
                   color="#F44336"
                   trend={supplierMetrics.defective}
@@ -2762,9 +2761,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                   )}
                 />
                 <MetricTile
-                  title="Supplier PPM"
+                  title={t.dashboard.supplierPpm}
                   value={supplierMetrics.ppm.value > 0 ? formatGermanNumber(supplierMetrics.ppm.value, 2) : "N/A"}
-                  subtitle="Parts per million"
+                  subtitle={t.dashboard.partsPerMillion}
                   icon={Activity}
                   color="#4CAF50"
                   trend={supplierMetrics.ppm}
@@ -2781,14 +2780,14 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             {/* YTD Supplier Metrics Heading - Only show in full view (supplier-only view uses the main heading above) */}
             {isFullView && (
               <>
-                <h2 className="text-lg font-semibold text-foreground">YTD Supplier Metrics</h2>
+                <h2 className="text-lg font-semibold text-foreground">{t.dashboard.ytdSupplierMetrics}</h2>
                 
                 {/* YTD Supplier Metrics Row */}
                 <div className="grid gap-4 md:grid-cols-4 auto-rows-fr" style={{ gridAutoRows: '1fr' }}>
           <MetricTile
-            title="Supplier Complaints"
+            title={t.dashboard.supplierComplaints}
             value={supplierMetrics.complaints.value}
-            subtitle="Q2 notifications"
+            subtitle={t.dashboard.q2Notifications}
             icon={AlertTriangle}
             color="#14b8a6"
             trend={supplierMetrics.complaints}
@@ -2803,11 +2802,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             }}
           />
           <MetricTile
-            title="Supplier Deliveries"
+            title={t.dashboard.supplierDeliveries}
             value={supplierMetrics.deliveries.value > 0 
               ? `${formatGermanNumber(supplierMetrics.deliveries.value / 1_000_000, 2)}M`
               : 'N/A'}
-            subtitle="Parts shipped"
+            subtitle={t.dashboard.partsReceived}
             icon={Package}
             color="#00BCD4"
             trend={supplierMetrics.deliveries}
@@ -2820,9 +2819,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             }}
           />
           <MetricTile
-            title="Supplier Defective Parts"
+            title={t.dashboard.supplierDefectiveParts}
             value={supplierMetrics.defective.value}
-            subtitle="Q2 defective"
+            subtitle={t.dashboard.q2Defective}
             icon={TrendingDown}
             color="#F44336"
             trend={supplierMetrics.defective}
@@ -4094,7 +4093,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           </div>
 
           {/* Summary Stats */}
-          <div className="grid grid-cols-4 gap-4 mt-6 pt-6 border-t">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t">
             <div>
               <p className="text-sm text-muted-foreground">Avg PPM</p>
               <p className="text-2xl font-bold text-green-500">
@@ -4136,7 +4135,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Customer PPM - Site Contribution per Month</CardTitle>
+                    <CardTitle>{t.dashboard.customerPpmSiteContribution}</CardTitle>
                     <CardDescription>
                       Source: Defective Parts from Q Cockpit (Column AF - Return delivery qty) | Deliveries from Outbound files (Column E - Quantity)
                     </CardDescription>
@@ -4164,7 +4163,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                       // Site rows
                       sites.forEach((siteCode) => {
                         const formattedSiteName = formatSiteNameForChart(siteCode, false);
-                        const row: Array<string | number> = [`${formattedSiteName} Defective Parts`];
+                        const row: Array<string | number> = [`${formattedSiteName} ${t.dashboard.defectivePartsBySite}`];
                         let siteTotal = 0;
                         months.forEach((month) => {
                           const siteData = bySiteMonth.get(siteCode);
@@ -4218,7 +4217,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                     }}
                   >
                     <FileSpreadsheet className="mr-2 h-4 w-4" />
-                    Export to Excel
+                    {t.dashboard.exportToExcel}
                   </Button>
                 </div>
               </CardHeader>
@@ -4227,7 +4226,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-center">Data / Plant</TableHead>
+                        <TableHead className="text-center">{t.common.site}</TableHead>
                     {customerPpmSiteContribution.months.map((month) => {
                       const date = new Date(month + "-01");
                       return (
@@ -4250,8 +4249,8 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                       <TableRow key={`${siteCode}-defective`}>
                         <TableCell>
                           <div>
-                            <span>{formattedSiteName} Defective Parts</span>
-                            <span className="text-xs text-muted-foreground block">(Site contribution)</span>
+                            <span>{formattedSiteName} {t.dashboard.defectivePartsBySite}</span>
+                            <span className="text-xs text-muted-foreground block">{t.dashboard.siteContribution}</span>
                           </div>
                         </TableCell>
                         {customerPpmSiteContribution.months.map((month) => {
@@ -4390,7 +4389,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           {/* Customer Defective Parts by Site */}
           <Card className="glass-card-glow chart-container">
             <CardHeader>
-              <CardTitle>Customer Defective Parts by Site - All Sites</CardTitle>
+              <CardTitle>{t.dashboard.defectivePartsBySite} - {t.dashboard.allSites}</CardTitle>
               <CardDescription>Share of total customer defective parts per manufacturing location</CardDescription>
             </CardHeader>
             <CardContent>
@@ -4508,7 +4507,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           {/* Customer Deliveries by Site */}
           <Card ref={customerDeliveriesChartRef} className="glass-card-glow chart-container">
             <CardHeader>
-              <CardTitle>Customer Deliveries by Site - All Sites</CardTitle>
+              <CardTitle>{t.dashboard.deliveriesBySite} - {t.dashboard.allSites}</CardTitle>
               <CardDescription>Share of total customer deliveries per manufacturing location</CardDescription>
             </CardHeader>
             <CardContent>
@@ -4811,7 +4810,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               </div>
 
               {/* Summary Stats */}
-              <div className="grid grid-cols-4 gap-4 mt-6 pt-6 border-t">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t">
                 <div>
                   <p className="text-sm text-muted-foreground">Avg PPM</p>
                   <p className="text-2xl font-bold text-green-500">
@@ -4852,7 +4851,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Supplier PPM - Site Contribution per Month</CardTitle>
+                    <CardTitle>{t.dashboard.supplierPpmSiteContribution}</CardTitle>
                     <CardDescription>
                       Source: Defective Parts from Q Cockpit (Column AF - Return delivery qty) | Deliveries from Inbound files (Column E - Quantity)
                     </CardDescription>
@@ -4880,7 +4879,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                       // Site rows
                       sites.forEach((siteCode) => {
                         const formattedSiteName = formatSiteNameForChart(siteCode, false);
-                        const row: Array<string | number> = [`${formattedSiteName} Defective Parts`];
+                        const row: Array<string | number> = [`${formattedSiteName} ${t.dashboard.defectivePartsBySite}`];
                         let siteTotal = 0;
                         months.forEach((month) => {
                           const siteData = bySiteMonth.get(siteCode);
@@ -4934,7 +4933,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                     }}
                   >
                     <FileSpreadsheet className="mr-2 h-4 w-4" />
-                    Export to Excel
+                    {t.dashboard.exportToExcel}
                   </Button>
                 </div>
               </CardHeader>
@@ -4943,7 +4942,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-center">Data / Plant</TableHead>
+                        <TableHead className="text-center">{t.common.site}</TableHead>
                         {supplierPpmSiteContribution.months.map((month) => {
                           const date = new Date(month + "-01");
                           return (
@@ -4965,8 +4964,8 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                           <TableRow key={`${siteCode}-defective`}>
                             <TableCell>
                               <div>
-                                <span>{formattedSiteName} Defective Parts</span>
-                                <span className="text-xs text-muted-foreground block">(Site contribution)</span>
+                                <span>{formattedSiteName} {t.dashboard.defectivePartsBySite}</span>
+                                <span className="text-xs text-muted-foreground block">{t.dashboard.siteContribution}</span>
                               </div>
                             </TableCell>
                             {supplierPpmSiteContribution.months.map((month) => {
@@ -5105,7 +5104,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               {/* Supplier Defective Parts by Site */}
               <Card className="glass-card-glow chart-container">
                 <CardHeader>
-                  <CardTitle>Supplier Defective Parts by Site - All Sites</CardTitle>
+                  <CardTitle>{t.dashboard.defectivePartsBySite} - {t.dashboard.allSites}</CardTitle>
                   <CardDescription>Share of total supplier defective parts per manufacturing location</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -5223,7 +5222,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               {/* Supplier Deliveries by Site */}
               <Card ref={supplierDeliveriesChartRef} className="glass-card-glow chart-container">
                 <CardHeader>
-                  <CardTitle>Supplier Deliveries by Site - All Sites</CardTitle>
+                  <CardTitle>{t.dashboard.deliveriesBySite} - {t.dashboard.allSites}</CardTitle>
                   <CardDescription>Share of total supplier deliveries per manufacturing location</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -5430,7 +5429,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       </div>
       
       {/* Filter Panel - Right Sidebar */}
-      <div className="w-80 flex-shrink-0">
+      <div className="flex-shrink-0">
         <FilterPanel
           monthlySiteKpis={kpis}
           filters={filters}

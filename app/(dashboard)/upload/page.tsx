@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import { Upload, Loader2, FileSpreadsheet, X, CheckCircle2, ExternalLink, Plus, 
 import { useRouter } from "next/navigation";
 import type { MonthlySiteKpi } from "@/lib/domain/types";
 import * as XLSX from "xlsx";
+import { ROLE_CHANGED_EVENT, ROLE_STORAGE_KEY, type RoleKey } from "@/lib/auth/roles";
 
 type UploadSectionKey =
   | "complaints"
@@ -122,7 +124,10 @@ async function postFormDataWithProgress<T>(
 }
 
 export default function UploadPage() {
+  const { t } = useTranslation();
   const router = useRouter();
+  const [role, setRole] = useState<RoleKey>("reader");
+  const [hasRoleLoaded, setHasRoleLoaded] = useState(false);
   const [uploading, setUploading] = useState<Record<UploadSectionKey, boolean>>({
     complaints: false,
     deliveries: false,
@@ -220,42 +225,42 @@ export default function UploadPage() {
   const sectionMeta = useMemo(() => {
     return {
       complaints: {
-        title: "Customer & Supplier Complaints Files",
-        help: "Upload complaint notifications (Q1/Q2/Q3). Multiple files supported.",
+        title: t.upload.complaintsTitle,
+        help: t.upload.complaintsHelp,
         usedIn: [
-          "QOS ET Dashboard",
-          "Customer Performance",
-          "Supplier Performance",
-          "Poor Quality Costs (Internal)",
+          t.sidebar.dashboard,
+          t.sidebar.customerPerformance,
+          t.sidebar.supplierPerformance,
+          t.sidebar.poorQualityCosts,
         ],
       },
       deliveries: {
-        title: "Customer & Supplier Deliveries Files",
-        help: "Upload Outbound* (customer deliveries) and Inbound* (supplier deliveries). Multiple files supported.",
-        usedIn: ["QOS ET Dashboard", "Customer Performance", "Supplier Performance"],
+        title: t.upload.deliveriesTitle,
+        help: t.upload.deliveriesHelp,
+        usedIn: [t.sidebar.dashboard, t.sidebar.customerPerformance, t.sidebar.supplierPerformance],
       },
       ppap: {
-        title: "PPAP Notification Files",
-        help: "Upload PPAP base + status extracts. Multiple files supported.",
-        usedIn: ["PPAPs Overview"],
+        title: t.upload.ppapTitle,
+        help: t.upload.ppapHelp,
+        usedIn: [t.sidebar.ppapsOverview],
       },
       deviations: {
-        title: "Deviation Notifications Files",
-        help: "Upload Deviations base + status extracts. Multiple files supported.",
-        usedIn: ["Deviations Overview"],
+        title: t.upload.deviationsTitle,
+        help: t.upload.deviationsHelp,
+        usedIn: [t.sidebar.deviationsOverview],
       },
       audit: {
-        title: "Audit Management Files",
-        help: "Upload audit source files (placeholder until parsing is implemented). Multiple files supported.",
-        usedIn: ["Audit Management"],
+        title: t.upload.auditTitle,
+        help: t.upload.auditHelp,
+        usedIn: [t.sidebar.auditManagement],
       },
       plants: {
-        title: "Plant Overview Files",
-        help: "Upload the official plants list (e.g. Webasto ET Plants .xlsx). Multiple files supported.",
+        title: t.upload.plantsTitle,
+        help: t.upload.plantsHelp,
         usedIn: ["All pages (plant names/locations, legends, AI prompts)"],
       },
     } satisfies Record<UploadSectionKey, { title: string; help: string; usedIn: string[] }>;
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -565,11 +570,64 @@ export default function UploadPage() {
     XLSX.writeFile(wb, `qos-et-manual-and-history_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
+  useEffect(() => {
+    const loadRole = () => {
+      const storedRole = (localStorage.getItem(ROLE_STORAGE_KEY) as RoleKey | null) || "reader";
+      setRole(storedRole);
+      setHasRoleLoaded(true);
+    };
+    loadRole();
+    const onRoleChanged = () => loadRole();
+    window.addEventListener(ROLE_CHANGED_EVENT, onRoleChanged);
+    return () => window.removeEventListener(ROLE_CHANGED_EVENT, onRoleChanged);
+  }, []);
+
+  if (!hasRoleLoaded) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.upload.title}</CardTitle>
+            <CardDescription>{t.common.loading}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Preparing access permissions…</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (role === "reader") {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.upload.accessDenied}</CardTitle>
+            <CardDescription>
+              {t.upload.accessDeniedDescription}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+              {t.upload.switchToEditor}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => router.push("/dashboard")}>
+                {t.upload.backToDashboard}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Upload Data</h2>
-        <p className="text-muted-foreground">Structured upload + manual entry for the charts and KPI pages.</p>
+        <h2 className="text-2xl font-bold tracking-tight">{t.upload.title}</h2>
+        <p className="text-muted-foreground">{t.upload.description}</p>
       </div>
 
       <Tabs defaultValue="files">
@@ -579,32 +637,32 @@ export default function UploadPage() {
               value="files"
               className="text-base font-semibold px-4 data-[state=active]:bg-[#00FF88] data-[state=active]:text-black data-[state=active]:shadow-sm"
             >
-              Upload Files
+              {t.upload.uploadFiles}
             </TabsTrigger>
             <TabsTrigger
               value="form"
               className="text-base font-semibold px-4 data-[state=active]:bg-[#00FF88] data-[state=active]:text-black data-[state=active]:shadow-sm"
             >
-              Enter Data (Form)
+              {t.upload.enterData}
             </TabsTrigger>
             <TabsTrigger
               value="history"
               className="text-base font-semibold px-4 data-[state=active]:bg-[#00FF88] data-[state=active]:text-black data-[state=active]:shadow-sm"
             >
-              Change History
+              {t.upload.changeHistory}
             </TabsTrigger>
           </TabsList>
           <Button variant="outline" onClick={exportManualAndHistoryToExcel}>
             <Download className="h-4 w-4 mr-2" />
-            Export (Excel)
+            {t.upload.exportExcel}
           </Button>
         </div>
 
         <TabsContent value="files" className="space-y-6">
       <Card>
         <CardHeader>
-              <CardTitle>Structured Upload</CardTitle>
-              <CardDescription>Upload files by category so the correct pages/charts can be built reliably.</CardDescription>
+              <CardTitle>{t.upload.structuredUpload}</CardTitle>
+              <CardDescription>{t.upload.structuredUploadDescription}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {(
@@ -638,18 +696,18 @@ export default function UploadPage() {
                         {uploading[section] ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Uploading…
+                            {t.upload.uploading}
                           </>
                         ) : (
                           <>
                             <Upload className="h-4 w-4 mr-2" />
-                            Upload
+                            {t.upload.uploadButton}
                           </>
                         )}
                       </Button>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <FileSpreadsheet className="h-4 w-4" />
-                        <span>{files.length} file(s)</span>
+                        <span>{files.length} {t.upload.filesSelected}</span>
                       </div>
                     </div>
 
@@ -663,10 +721,10 @@ export default function UploadPage() {
                         <div className="flex items-center justify-between gap-3 text-sm mb-2">
                           <div className="text-muted-foreground">
                             {progressBySection[section].status === "uploading"
-                              ? "Uploading…"
+                              ? t.upload.uploading
                               : progressBySection[section].status === "success"
-                              ? "Upload completed"
-                              : "Upload failed"}
+                              ? t.upload.uploadCompleted
+                              : t.upload.uploadFailed}
                   </div>
                           <div
                             className="font-medium"
@@ -724,7 +782,7 @@ export default function UploadPage() {
                     )}
 
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-muted-foreground">Used in:</span>
+                      <span className="text-xs text-muted-foreground">{t.upload.usedIn}</span>
                       {sectionMeta[section].usedIn.map((u) => (
                         <Badge key={u} variant="secondary">
                           {u}
@@ -739,24 +797,24 @@ export default function UploadPage() {
 
           <Card className="glass-card-glow" style={{ borderColor: "#9E9E9E", borderWidth: "2px" }}>
             <CardHeader>
-              <CardTitle>Recalculate KPIs (Complaints + Deliveries)</CardTitle>
-              <CardDescription>When both categories are uploaded, compute KPIs and update the dashboard dataset.</CardDescription>
+              <CardTitle>{t.upload.recalculateKpis}</CardTitle>
+              <CardDescription>{t.upload.recalculateKpisDescription}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button onClick={recalculateKpis} disabled={complaintsFiles.length === 0 || deliveriesFiles.length === 0}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
-                Calculate KPIs
+                {t.upload.calculateKpis}
               </Button>
               {kpisResult && (
                 <div className="rounded-md border p-3 text-sm text-muted-foreground">
-                  <div className="font-medium text-foreground mb-1">Latest KPI Calculation</div>
-                  <div>Complaints: {formatGermanInt(kpisResult.summary.totalComplaints)}</div>
-                  <div>Deliveries: {formatGermanInt(kpisResult.summary.totalDeliveries)}</div>
-                  <div>Site-month KPIs: {formatGermanInt(kpisResult.summary.siteMonthCombinations)}</div>
+                  <div className="font-medium text-foreground mb-1">{t.upload.latestKpiCalculation}</div>
+                  <div>{t.upload.complaints} {formatGermanInt(kpisResult.summary.totalComplaints)}</div>
+                  <div>{t.upload.deliveries} {formatGermanInt(kpisResult.summary.totalDeliveries)}</div>
+                  <div>{t.upload.siteMonthKpis} {formatGermanInt(kpisResult.summary.siteMonthCombinations)}</div>
                   <Separator className="my-2" />
                   <Button onClick={() => router.push("/dashboard")} className="bg-[#00FF00] hover:bg-[#00FF00]/90 text-black font-semibold">
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Open QOS ET Dashboard
+                    {t.upload.openDashboard}
                   </Button>
                 </div>
               )}
@@ -767,15 +825,15 @@ export default function UploadPage() {
         <TabsContent value="form" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Manual Data Entry (Template)</CardTitle>
+              <CardTitle>{t.upload.manualDataEntry}</CardTitle>
               <CardDescription>
-                Enter monthly values per plant. These entries are persisted and merged into the local KPI dataset (`qos-et-kpis`).
+                {t.upload.manualDataEntryDescription}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label>Plant (3-digit)</Label>
+                  <Label>{t.upload.plant}</Label>
                   <Input
                     value={manualDraft.siteCode}
                     onChange={(e) => {
@@ -794,7 +852,7 @@ export default function UploadPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>City/Location</Label>
+                  <Label>{t.upload.cityLocation}</Label>
                   <Input
                     value={manualDraft.siteLocation}
                     onChange={(e) => setManualDraft((p) => ({ ...p, siteLocation: e.target.value }))}
@@ -802,7 +860,7 @@ export default function UploadPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Month</Label>
+                  <Label>{t.upload.month}</Label>
                   <Select value={manualDraft.month} onValueChange={(v) => setManualDraft((p) => ({ ...p, month: v }))}>
                     <SelectTrigger>
                       <SelectValue />
@@ -828,44 +886,44 @@ export default function UploadPage() {
 
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label>Customer Complaints (Q1)</Label>
+                  <Label>{t.upload.customerComplaintsQ1}</Label>
                   <Input type="number" value={manualDraft.customerComplaintsQ1} onChange={(e) => setManualDraft((p) => ({ ...p, customerComplaintsQ1: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Supplier Complaints (Q2)</Label>
+                  <Label>{t.upload.supplierComplaintsQ2}</Label>
                   <Input type="number" value={manualDraft.supplierComplaintsQ2} onChange={(e) => setManualDraft((p) => ({ ...p, supplierComplaintsQ2: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Internal Complaints (Q3)</Label>
+                  <Label>{t.upload.internalComplaintsQ3}</Label>
                   <Input type="number" value={manualDraft.internalComplaintsQ3} onChange={(e) => setManualDraft((p) => ({ ...p, internalComplaintsQ3: Number(e.target.value) }))} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Customer Defective Parts</Label>
+                  <Label>{t.upload.customerDefectiveParts}</Label>
                   <Input type="number" value={manualDraft.customerDefectiveParts} onChange={(e) => setManualDraft((p) => ({ ...p, customerDefectiveParts: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Supplier Defective Parts</Label>
+                  <Label>{t.upload.supplierDefectiveParts}</Label>
                   <Input type="number" value={manualDraft.supplierDefectiveParts} onChange={(e) => setManualDraft((p) => ({ ...p, supplierDefectiveParts: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Internal Defective Parts</Label>
+                  <Label>{t.upload.internalDefectiveParts}</Label>
                   <Input type="number" value={manualDraft.internalDefectiveParts} onChange={(e) => setManualDraft((p) => ({ ...p, internalDefectiveParts: Number(e.target.value) }))} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Outbound Deliveries (Customer)</Label>
+                  <Label>{t.upload.outboundDeliveries}</Label>
                   <Input type="number" value={manualDraft.customerDeliveries} onChange={(e) => setManualDraft((p) => ({ ...p, customerDeliveries: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Inbound Deliveries (Supplier)</Label>
+                  <Label>{t.upload.inboundDeliveries}</Label>
                   <Input type="number" value={manualDraft.supplierDeliveries} onChange={(e) => setManualDraft((p) => ({ ...p, supplierDeliveries: Number(e.target.value) }))} />
             </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>PPAPs In Progress</Label>
+                  <Label>{t.upload.ppapsInProgress}</Label>
                   <Input
                     type="number"
                     value={manualDraft.ppapInProgress}
@@ -873,7 +931,7 @@ export default function UploadPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>PPAPs Completed</Label>
+                  <Label>{t.upload.ppapsCompleted}</Label>
                   <Input
                     type="number"
                     value={manualDraft.ppapCompleted}
@@ -881,7 +939,7 @@ export default function UploadPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Deviations In Progress</Label>
+                  <Label>{t.upload.deviationsInProgress}</Label>
                   <Input
                     type="number"
                     value={manualDraft.deviationsInProgress}
@@ -889,7 +947,7 @@ export default function UploadPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Deviations Completed</Label>
+                  <Label>{t.upload.deviationsCompleted}</Label>
                   <Input
                     type="number"
                     value={manualDraft.deviationsCompleted}
@@ -897,7 +955,7 @@ export default function UploadPage() {
                   />
                 </div>
                 <div className="md:col-span-2 text-xs text-muted-foreground">
-                  Deviations total used by KPIs = In Progress + Completed.
+                  {t.upload.deviationsTotalNote}
                 </div>
               </div>
 
@@ -905,19 +963,19 @@ export default function UploadPage() {
 
               <div className="grid gap-3 md:grid-cols-4">
                 <div className="space-y-1.5">
-                  <Label>Audits: Internal System</Label>
+                  <Label>{t.upload.auditsInternalSystem}</Label>
                   <Input type="number" value={manualDraft.auditInternalSystem} onChange={(e) => setManualDraft((p) => ({ ...p, auditInternalSystem: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Audits: Certification</Label>
+                  <Label>{t.upload.auditsCertification}</Label>
                   <Input type="number" value={manualDraft.auditCertification} onChange={(e) => setManualDraft((p) => ({ ...p, auditCertification: Number(e.target.value) }))} />
                       </div>
                 <div className="space-y-1.5">
-                  <Label>Audits: Process</Label>
+                  <Label>{t.upload.auditsProcess}</Label>
                   <Input type="number" value={manualDraft.auditProcess} onChange={(e) => setManualDraft((p) => ({ ...p, auditProcess: Number(e.target.value) }))} />
                     </div>
                 <div className="space-y-1.5">
-                  <Label>Audits: Product</Label>
+                  <Label>{t.upload.auditsProduct}</Label>
                   <Input type="number" value={manualDraft.auditProduct} onChange={(e) => setManualDraft((p) => ({ ...p, auditProduct: Number(e.target.value) }))} />
                 </div>
             </div>
@@ -926,11 +984,11 @@ export default function UploadPage() {
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>Poor Quality Costs (template)</Label>
+                  <Label>{t.upload.poorQualityCosts}</Label>
                   <Input type="number" value={manualDraft.poorQualityCosts} onChange={(e) => setManualDraft((p) => ({ ...p, poorQualityCosts: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Warranty Costs (template)</Label>
+                  <Label>{t.upload.warrantyCosts}</Label>
                   <Input type="number" value={manualDraft.warrantyCosts} onChange={(e) => setManualDraft((p) => ({ ...p, warrantyCosts: Number(e.target.value) }))} />
                 </div>
               </div>
@@ -938,14 +996,14 @@ export default function UploadPage() {
               <div className="flex items-center gap-3">
                 <Button onClick={addManualEntry}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Entry
+                  {t.upload.addEntry}
                 </Button>
-                <p className="text-xs text-muted-foreground">Plant must be a 3-digit code (e.g., 410).</p>
+                <p className="text-xs text-muted-foreground">{t.upload.plantMustBe3Digits}</p>
                   </div>
 
               {manualEntries.length > 0 && (
                 <div className="rounded-md border p-3 text-sm">
-                  <div className="font-medium mb-2">Manual Entries ({manualEntries.length})</div>
+                  <div className="font-medium mb-2">{t.upload.manualEntries} ({manualEntries.length})</div>
                   <div className="space-y-2">
                     {manualEntries.slice(0, 10).map((m, idx) => (
                       <div key={`${m.month}-${m.siteCode}-${idx}`} className="flex items-center justify-between">
@@ -959,7 +1017,7 @@ export default function UploadPage() {
                     </div>
                     ))}
                     {manualEntries.length > 10 && (
-                      <div className="text-xs text-muted-foreground">Showing first 10 entries. Export to Excel to view all.</div>
+                      <div className="text-xs text-muted-foreground">{t.upload.showingFirst10}</div>
                     )}
                   </div>
                 </div>
@@ -973,13 +1031,13 @@ export default function UploadPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" />
-                Change History
+                {t.upload.historyTitle}
               </CardTitle>
-              <CardDescription>Every upload and manual entry is logged with timestamp, record counts, and usage references.</CardDescription>
+              <CardDescription>{t.upload.historyDescription}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {history.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No history yet.</p>
+                <p className="text-sm text-muted-foreground">{t.upload.noHistory}</p>
               ) : (
                 <div className="space-y-2">
                   {history.slice(0, 30).map((h) => (
@@ -995,10 +1053,10 @@ export default function UploadPage() {
                         <Badge variant="secondary">{h.section}</Badge>
                       </div>
                       <div className="mt-2 text-xs text-muted-foreground">
-                        <div><span className="font-medium text-foreground">Files:</span> {h.files.map((f) => f.name).join("; ")}</div>
-                        <div><span className="font-medium text-foreground">Summary:</span> {JSON.stringify(h.summary)}</div>
-                        <div><span className="font-medium text-foreground">Used in:</span> {h.usedIn.join("; ")}</div>
-                        {h.notes && <div><span className="font-medium text-foreground">Notes:</span> {h.notes}</div>}
+                        <div><span className="font-medium text-foreground">{t.upload.files}</span> {h.files.map((f) => f.name).join("; ")}</div>
+                        <div><span className="font-medium text-foreground">{t.upload.summary}</span> {JSON.stringify(h.summary)}</div>
+                        <div><span className="font-medium text-foreground">{t.upload.usedIn}</span> {h.usedIn.join("; ")}</div>
+                        {h.notes && <div><span className="font-medium text-foreground">{t.upload.notes}</span> {h.notes}</div>}
                       </div>
                     </div>
                   ))}
