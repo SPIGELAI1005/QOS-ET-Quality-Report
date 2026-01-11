@@ -1,7 +1,7 @@
 # QOS ET Quality Report - Complete Project State Documentation
 
 **Last Updated**: 2026-01-11  
-**Version**: 1.0.2  
+**Version**: 1.0.3  
 **Status**: Active Development
 
 This document provides a complete snapshot of the application state, including all pages, components, features, charts, tables, and functionality. Use this document to rebuild the application if data is lost.
@@ -569,7 +569,25 @@ All UI components from Shadcn UI:
       selectedPlants?: string[];
       dateRange?: { from: string; to: string };
       complaintTypes?: string[];
-      metrics?: Record<string, unknown>;
+      notificationTypes?: string[];
+      metrics?: {
+        customerComplaints?: number;
+        supplierComplaints?: number;
+        customerDeliveries?: number;
+        supplierDeliveries?: number;
+        customerDefective?: number;
+        supplierDefective?: number;
+        customerPpm?: number;
+        supplierPpm?: number;
+        selectedSitesCount?: number;
+      };
+      monthlySiteKpis?: MonthlySiteKpi[]; // Full KPI data for deep analysis
+      globalPpm?: {
+        customerPpm: number | null;
+        supplierPpm: number | null;
+      };
+      selectedSites?: string[];
+      selectedMonths?: string[];
       datasetHealth?: Record<string, unknown>;
     }
   }
@@ -584,6 +602,18 @@ All UI components from Shadcn UI:
   - Input validation (max 2000 characters)
   - Question classification (chart_explainer mode)
   - Context-aware responses using dashboard state
+  - **Dashboard Data Analysis**: Analyzes actual KPI data (monthlySiteKpis) like AI Summary
+    - Trend analysis (month-over-month changes)
+    - Site comparison (top performers vs sites needing attention)
+    - Anomaly detection (spikes, sudden changes)
+    - Actionable recommendations based on actual data
+    - References specific site codes, months, and PPM values
+    - Includes plant locations (e.g., "Site 145 (Vienna)")
+    - Distinguishes between Customer PPM and Supplier PPM
+  - **Starter Prompts**: 15 pre-written questions with expandable UI
+    - Shows 10 prompts initially with "Show more..." button
+    - Remaining 5 prompts revealed when expanded
+    - Auto-sends question when clicked
   - Knowledge base integration from FAQ/Glossary
   - Dataset health awareness
 - **Environment Variables**:
@@ -749,6 +779,11 @@ interface DeliveryColumnMapping {
   - Native system message support for Anthropic
 - I AM Q AI Assistant (`/api/iamq`)
   - Context-aware responses using dashboard state
+  - **Dashboard Data Analysis**: Analyzes actual KPI data (monthlySiteKpis) for deep insights
+    - Trend analysis, site comparison, anomaly detection
+    - Provides actionable recommendations based on actual metrics
+    - References specific sites, months, and values
+  - **Starter Prompts**: 15 clickable questions with expandable UI (10 shown initially)
   - Knowledge base integration from FAQ/Glossary
   - Dataset health awareness
   - Rate limiting (20 requests per 10 minutes)

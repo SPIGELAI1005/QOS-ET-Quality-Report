@@ -1,5 +1,7 @@
 # Recovery Guide - QOS ET Quality Report
 
+**Last Updated**: 2026-01-11
+
 This guide provides step-by-step instructions to recover and rebuild the QOS ET Quality Report application if data is lost due to crashes, corruption, or accidental deletion.
 
 ---

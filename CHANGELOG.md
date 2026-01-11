@@ -10,6 +10,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - 2026-01-11
 **Type**: Added
 
+**Description**: Enhanced I AM Q with dashboard data analysis and starter prompts
+
+**Details**:
+- **Dashboard Data Analysis**: I AM Q now analyzes actual dashboard data (monthlySiteKpis) like AI Summary
+  - Full access to KPI data: trends, site comparison, anomaly detection
+  - Provides actionable recommendations based on actual data
+  - Can identify top performers and sites needing attention
+  - References specific site codes, months, and PPM values
+  - Includes plant locations (e.g., "Site 145 (Vienna)")
+  - Distinguishes between Customer PPM and Supplier PPM
+- **Starter Prompts**: Added 15 clickable starter questions for users
+  - Shows 10 prompts initially with "Show more..." button
+  - Remaining 5 prompts revealed when "Show more..." is clicked
+  - Questions cover: trends, PPM analysis, recommendations, chart interpretation, data health
+  - Auto-sends question when clicked
+- **Enhanced System Prompt**: Updated to enable data-driven recommendations
+  - Analyzes trends over time (month-over-month)
+  - Compares sites (best vs worst performers)
+  - Identifies anomalies and spikes
+  - Provides specific, actionable improvement suggestions
+  - Uses Quality Management terminology (containment, root cause analysis, corrective actions)
+
+**Files Modified**:
+- `lib/iamq/contextBuilder.ts` - Added support for monthlySiteKpis, globalPpm, selectedSites, selectedMonths
+- `lib/iamq/systemPrompt.ts` - Added data analysis mode with recommendations and hints
+- `components/iamq/iamq-chat-panel.tsx` - Added starter prompts with expandable UI, fixed TypeScript onClick handler
+- `app/(dashboard)/dashboard/dashboard-client.tsx` - Passes full KPI data to I AM Q
+
+**Components Affected**:
+- I AM Q Chat Panel - Now shows starter prompts and analyzes dashboard data
+- I AM Q Context Builder - Includes full KPI dataset for deep analysis
+- Dashboard Client - Provides filtered KPIs to I AM Q
+
+**Features Added/Modified**:
+- Dashboard data analysis - I AM Q can now analyze actual KPI trends and provide recommendations
+- Starter prompts - 15 pre-written questions with expandable UI
+- Enhanced recommendations - Data-driven suggestions based on actual metrics
+
+**Breaking Changes**: None
+
+**Migration Notes**:
+- No migration required - existing I AM Q functionality remains unchanged
+- Starter prompts appear automatically when chat panel is empty
+- Dashboard data analysis works automatically when monthlySiteKpis are available
+
+---
+
+### Added - 2026-01-11
+**Type**: Added
+
 **Description**: Multi-provider AI support for I AM Q and comprehensive testing infrastructure
 
 **Details**:
