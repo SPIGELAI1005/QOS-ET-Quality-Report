@@ -5612,6 +5612,10 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           supplierPpm: supplierMetrics.ppm.value,
           selectedSitesCount: availableSites.length,
         }}
+        monthlySiteKpis={filteredKpis}
+        globalPpm={ppm}
+        selectedSites={filters.selectedPlants.length > 0 ? filters.selectedPlants : (selectedSites.length > 0 ? selectedSites : Array.from(new Set(filteredKpis.map((k) => k.siteCode))).sort())}
+        selectedMonths={Array.from(new Set(filteredKpis.map(k => k.month))).sort()}
       />
     </div>
   );

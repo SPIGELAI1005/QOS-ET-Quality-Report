@@ -2,12 +2,12 @@
  * I AM Q Context Builder
  * 
  * Builds a lightweight context snapshot from dashboard state to send with questions.
- * Only includes aggregated values already shown on screen, not raw datasets.
+ * Includes aggregated values and optionally full KPI data for deep analysis (like AI Summary).
  */
 
 import type { FilterState } from '@/components/dashboard/filter-panel';
-
 import type { DatasetHealthSummary } from '@/lib/data/datasetHealth';
+import type { MonthlySiteKpi } from '@/lib/domain/types';
 
 export interface IAmQContext {
   page?: string;
@@ -29,11 +29,19 @@ export interface IAmQContext {
     supplierPpm?: number;
     selectedSitesCount?: number;
   };
+  monthlySiteKpis?: MonthlySiteKpi[]; // Full KPI data for deep analysis (like AI Summary)
+  globalPpm?: {
+    customerPpm: number | null;
+    supplierPpm: number | null;
+  };
+  selectedSites?: string[];
+  selectedMonths?: string[];
   datasetHealth?: DatasetHealthSummary;
 }
 
 /**
  * Build context snapshot from filter state and metrics
+ * Can include full monthlySiteKpis for deep analysis (like AI Summary)
  */
 export function buildIAmQContext(options: {
   page?: string;
@@ -49,6 +57,13 @@ export function buildIAmQContext(options: {
     supplierPpm?: number;
     selectedSitesCount?: number;
   };
+  monthlySiteKpis?: MonthlySiteKpi[]; // Full KPI data for deep analysis
+  globalPpm?: {
+    customerPpm: number | null;
+    supplierPpm: number | null;
+  };
+  selectedSites?: string[];
+  selectedMonths?: string[];
   datasetHealth?: DatasetHealthSummary;
 }): IAmQContext {
   const context: IAmQContext = {};
@@ -125,6 +140,24 @@ export function buildIAmQContext(options: {
     if (Object.keys(context.metrics).length === 0) {
       delete context.metrics;
     }
+  }
+
+  // Full KPI data (for deep analysis like AI Summary)
+  if (options.monthlySiteKpis && options.monthlySiteKpis.length > 0) {
+    context.monthlySiteKpis = options.monthlySiteKpis;
+  }
+
+  // Global PPM
+  if (options.globalPpm) {
+    context.globalPpm = options.globalPpm;
+  }
+
+  // Selected sites and months
+  if (options.selectedSites && options.selectedSites.length > 0) {
+    context.selectedSites = options.selectedSites;
+  }
+  if (options.selectedMonths && options.selectedMonths.length > 0) {
+    context.selectedMonths = options.selectedMonths;
   }
 
   // Dataset health

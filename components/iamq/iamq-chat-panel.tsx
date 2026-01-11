@@ -11,6 +11,7 @@ import { buildIAmQContext, type IAmQContext } from "@/lib/iamq/contextBuilder";
 import type { FilterState } from "@/components/dashboard/filter-panel";
 import { getDatasetHealthSummary, type UploadHistoryEntry } from "@/lib/data/datasetHealth";
 import { useToast } from "@/components/ui/use-toast";
+import type { MonthlySiteKpi } from "@/lib/domain/types";
 
 // Type declarations for Web Speech API
 interface SpeechRecognition extends EventTarget {
@@ -76,10 +77,45 @@ interface IAmQChatPanelProps {
     supplierPpm?: number;
     selectedSitesCount?: number;
   };
+  monthlySiteKpis?: MonthlySiteKpi[]; // Full KPI data for deep analysis (like AI Summary)
+  globalPpm?: {
+    customerPpm: number | null;
+    supplierPpm: number | null;
+  };
+  selectedSites?: string[];
+  selectedMonths?: string[];
 }
 
 
-export function IAmQChatPanel({ open, onOpenChange, filters, metrics }: IAmQChatPanelProps) {
+// Starter prompts/questions for users to click
+const STARTER_PROMPTS = [
+  "What are the key trends in my quality data?",
+  "Which sites have the highest PPM and need attention?",
+  "Compare customer PPM vs supplier PPM across all sites",
+  "What recommendations do you have to improve quality?",
+  "Explain what PPM means and how it's calculated",
+  "Why is my PPM zero or showing no data?",
+  "Which sites are performing best and why?",
+  "What are the main risks and anomalies in my data?",
+  "How do I interpret the complaint trends chart?",
+  "What actions should I take based on current metrics?",
+  "Explain the difference between Q1, Q2, and Q3 complaints",
+  "Which months show the most quality issues?",
+  "What does the dataset health status mean?",
+  "How can I improve supplier quality performance?",
+  "What are the top opportunities for quality improvement?",
+];
+
+export function IAmQChatPanel({ 
+  open, 
+  onOpenChange, 
+  filters, 
+  metrics,
+  monthlySiteKpis,
+  globalPpm,
+  selectedSites,
+  selectedMonths,
+}: IAmQChatPanelProps) {
   const pathname = usePathname();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -88,6 +124,7 @@ export function IAmQChatPanel({ open, onOpenChange, filters, metrics }: IAmQChat
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copiedDiagnostics, setCopiedDiagnostics] = useState(false);
+  const [showMorePrompts, setShowMorePrompts] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -113,6 +150,9 @@ export function IAmQChatPanel({ open, onOpenChange, filters, metrics }: IAmQChat
     if (open && inputRef.current) {
       // Focus input when panel opens
       setTimeout(() => inputRef.current?.focus(), 100);
+    } else if (!open) {
+      // Reset state when panel closes
+      setShowMorePrompts(false);
     }
     
     // Initialize speech recognition
@@ -155,13 +195,14 @@ export function IAmQChatPanel({ open, onOpenChange, filters, metrics }: IAmQChat
     };
   }, [open]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (questionOverride?: string) => {
+    const questionToSend = questionOverride || input.trim();
+    if (!questionToSend || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: questionToSend,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -197,6 +238,10 @@ export function IAmQChatPanel({ open, onOpenChange, filters, metrics }: IAmQChat
         page: getPageName(),
         filters,
         metrics,
+        monthlySiteKpis, // Full KPI data for deep analysis
+        globalPpm,
+        selectedSites,
+        selectedMonths,
         datasetHealth,
       });
 
@@ -206,7 +251,7 @@ export function IAmQChatPanel({ open, onOpenChange, filters, metrics }: IAmQChat
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          question: userMessage.content,
+          question: questionToSend,
           context,
         }),
       });
@@ -549,8 +594,56 @@ export function IAmQChatPanel({ open, onOpenChange, filters, metrics }: IAmQChat
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-              Ask me anything about quality management, KPIs, or your data.
+            <div className="flex flex-col items-center justify-center h-full space-y-6">
+              <div className="text-center text-muted-foreground text-sm mb-4">
+                Ask me anything about quality management, KPIs, or your data.
+              </div>
+              
+              {/* Starter prompts */}
+              <div className="w-full max-w-md space-y-2">
+                <div className="text-xs font-medium text-muted-foreground mb-3 text-center">
+                  Or try one of these questions:
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {STARTER_PROMPTS.slice(0, 10).map((prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        handleSend(prompt);
+                      }}
+                      className="text-left px-4 py-2.5 rounded-lg text-sm bg-muted/50 hover:bg-muted/80 border border-border/40 hover:border-primary/40 transition-all text-foreground hover:text-primary cursor-pointer backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isLoading}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                  
+                  {/* Show more button */}
+                  {!showMorePrompts && STARTER_PROMPTS.length > 10 && (
+                    <button
+                      onClick={() => setShowMorePrompts(true)}
+                      className="text-left px-4 py-2.5 rounded-lg text-sm bg-muted/30 hover:bg-muted/60 border border-border/40 hover:border-primary/40 transition-all text-muted-foreground hover:text-primary cursor-pointer backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isLoading}
+                    >
+                      Show more...
+                    </button>
+                  )}
+                  
+                  {/* Remaining prompts (shown when "Show more" is clicked) */}
+                  {showMorePrompts && STARTER_PROMPTS.slice(10).map((prompt, index) => (
+                    <button
+                      key={index + 10}
+                      onClick={() => {
+                        handleSend(prompt);
+                      }}
+                      className="text-left px-4 py-2.5 rounded-lg text-sm bg-muted/50 hover:bg-muted/80 border border-border/40 hover:border-primary/40 transition-all text-foreground hover:text-primary cursor-pointer backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isLoading}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
