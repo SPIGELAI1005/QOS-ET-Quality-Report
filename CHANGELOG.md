@@ -7,6 +7,150 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2026-01-11
+**Type**: Added
+
+**Description**: Multi-provider AI support for I AM Q and comprehensive testing infrastructure
+
+**Details**:
+- **Multi-Provider Support**: Extended I AM Q to support both OpenAI and Anthropic providers
+  - Provider selection via `AI_PROVIDER` environment variable (`openai` or `anthropic`)
+  - Provider-specific API key support: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (with `AI_API_KEY` as fallback)
+  - Both providers support streaming responses with normalized text chunk format
+  - Anthropic client now uses native system message support
+  - Clear error messages indicating which environment variables are required
+- **Testing Infrastructure**: Added comprehensive testing for I AM Q endpoint
+  - Vitest unit tests (`app/api/iamq/__tests__/route.test.ts`) with mocked dependencies
+  - Smoke test script (`scripts/test-iamq.ts`) for manual HTTP-based testing
+  - Tests cover: missing API keys, unsupported providers, validation errors, success responses, context support
+  - Tests work without requiring real API keys (graceful error handling)
+  - Added `npm run test:iamq` script for easy smoke testing
+
+**Files Modified**:
+- `app/api/iamq/route.ts` - Enhanced provider detection and API key resolution
+- `lib/ai/client.ts` - Added streaming support for Anthropic, improved provider handling
+- `app/api/iamq/__tests__/route.test.ts` - New Vitest test suite
+- `scripts/test-iamq.ts` - New smoke test script
+- `package.json` - Added `test:iamq` script
+
+**Components Affected**:
+- I AM Q API route - Now supports multiple AI providers seamlessly
+- LLM Client - Unified interface for OpenAI and Anthropic with streaming support
+
+**Features Added/Modified**:
+- Multi-provider AI support - Switch between OpenAI and Anthropic via environment variables
+- Streaming responses - Both providers return token-by-token streaming
+- Testing infrastructure - Unit tests and smoke tests for API stability
+
+**Breaking Changes**: None
+
+**Migration Notes**:
+- To use Anthropic: Set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-ant-...` in `.env.local`
+- To use OpenAI: Set `AI_PROVIDER=openai` and `OPENAI_API_KEY=sk-...` in `.env.local`
+- Generic `AI_API_KEY` works as fallback for both providers
+- Run tests with: `npm test -- app/api/iamq/__tests__/route.test.ts` or `npm run test:iamq`
+
+---
+
+### Fixed - 2026-01-11
+**Type**: Fixed
+
+**Description**: Fixed dashboard sparkline charts, tooltip z-index, filter panel PS4 selection, and UI improvements
+
+**Details**:
+- **Sparkline Charts**: Fixed sparkline data calculation to use selected month/year instead of current date, ensuring charts display correctly based on user's date selection
+- **Tooltip Z-Index**: Fixed metric info tooltips z-index to z-[9999] to bring them in front of metric tiles for better visibility
+- **SAP PS4 Filter**: Fixed filterBySapPS4 to select ALL PS4 plants from plantsData (all 12 PS4 sites: 131, 135, 145, 175, 180, 195, 200, 205, 211, 235, 410, 411) regardless of data availability, not just plants with data
+- **Quick Access Filter Indicators**: Added visual indication for quick access filter buttons (SAP PS4 Sites, SAP P01 Sites, AX Sites, Automotive, Aftermarket) - buttons now show highlighted state (variant="default") when their filter is active
+- **Selected Plant Text Color**: Fixed selected plant text color to be black in both light and dark modes for better readability against colored selection backgrounds
+
+**Files Modified**:
+- `app/(dashboard)/dashboard/dashboard-client.tsx` - Updated sparkline data calculation to use selectedMonth/selectedYear, added z-[9999] to TooltipContent
+- `components/dashboard/filter-panel.tsx` - Fixed filterBySapPS4 to use getSapPS4PlantCodes from plantsData, added visual state indicators for quick access buttons, fixed selected plant text color
+
+**Components Affected**:
+- DashboardClient - Sparkline charts now use selected date range
+- FilterPanel - PS4 filter selects all PS4 plants, quick access buttons show active state
+- MetricTile - Info tooltips now appear in front of tiles
+
+**Features Added/Modified**:
+- Dashboard sparkline charts - Now respect user's selected month/year
+- Filter panel quick access buttons - Visual feedback when filter is active
+- Plant filter selection - All PS4 plants selected regardless of data availability
+
+**Breaking Changes**: None
+
+**Migration Notes**: None
+
+---
+
+### Added - 2026-01-11
+**Type**: Added
+
+**Description**: Complete internationalization (i18n) support with full German and Italian translations across all pages
+
+**Details**:
+- Implemented comprehensive translation system with support for **English (en), German (de), and Italian (it)**
+- Created `lib/i18n/translations.ts` with structured translation keys for all UI elements
+- Added `lib/i18n/useTranslation.ts` hook for accessing translations throughout the app
+- **Settings Page** fully translated:
+  - AI Configuration tab (title, description, environment variables info)
+  - Column Mappings tab (title, description, complaint/delivery file mappings)
+  - All buttons, placeholders, and helper text
+- **Glossary/FAQ Page** fully translated:
+  - All 15 FAQ questions and answers translated
+  - All 30+ glossary terms and definitions translated
+  - "How to read key charts" section translated
+  - Search placeholder, tab labels, category names
+- **Dashboard Page** fully translated:
+  - All chart titles and descriptions
+  - Tooltip texts ("How to read this chart", "Reset to show all plants")
+  - Filter labels (Notification Types, Defect Types, period selectors)
+  - Table headers (Month, PPM, Change, Defective, Deliveries, TOTAL)
+  - Excel export headers
+  - Chart legends and data keys (Actual PPM, Month Avg Target, Closed, In Progress)
+- **All other pages** translated:
+  - Home page (intro content, titles, buttons)
+  - Upload page (all sections, labels, buttons)
+  - AI Summary page (titles, descriptions, error messages)
+  - Complaints page (titles, chart labels, table headers)
+  - PPM page (titles, descriptions, legend items)
+  - Deviations page (titles, status labels, chart descriptions)
+  - PPAPs page (titles, status labels, chart descriptions)
+  - Audit Management page (titles, descriptions, labels)
+- **Navigation & UI** translated:
+  - TopBar (header title, language selector, theme labels, role labels)
+  - Sidebar (all navigation items, collapse button labels)
+  - Filter Panel (all filter labels, button texts, placeholders)
+  - Role Access Dialog (title, description, role labels, password placeholders, error messages)
+
+**Files Added**:
+- `lib/i18n/translations.ts` - Complete translation definitions for en/de/it
+- `lib/i18n/useTranslation.ts` - React hook for translation access
+
+**Files Modified**:
+- `app/(dashboard)/settings/page.tsx` - Added translation support
+- `app/(dashboard)/glossary/glossary-client.tsx` - Updated to use translation keys
+- `app/(dashboard)/dashboard/dashboard-client.tsx` - All strings translated
+- `app/(dashboard)/deviations/deviations-client.tsx` - Chart data keys and tooltips translated
+- `app/(dashboard)/ppaps/ppaps-client.tsx` - Chart data keys and tooltips translated
+- `app/page.tsx` - Home page content translated
+- `components/layout/topbar.tsx` - Header text and labels translated
+- `components/layout/sidebar.tsx` - Navigation items translated
+- `components/dashboard/filter-panel.tsx` - Filter labels translated
+- `components/auth/role-access-dialog.tsx` - Dialog content translated
+- All other dashboard pages (upload, ai-summary, complaints, ppm, audit-management) - Fully translated
+
+**Language Switching**:
+- Language selector in header (TopBar) allows switching between English, German, and Italian
+- Language preference persisted in `localStorage`
+- All content updates dynamically when language changes
+- HTML `lang` attribute updated automatically
+
+**Breaking Changes**: None
+
+---
+
 ### Added - 2026-01-06
 **Type**: Added
 

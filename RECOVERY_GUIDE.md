@@ -78,7 +78,46 @@ git checkout origin/<branch-name>
 
 ---
 
-## Step 3: Rebuild Missing Components
+## Step 3: Verify Environment Configuration
+
+### Check Environment Variables
+
+The application requires several environment variables for AI features:
+
+**I AM Q AI Assistant:**
+- `AI_PROVIDER`: `openai` or `anthropic` (default: `openai`)
+- `OPENAI_API_KEY`: OpenAI API key (or use `AI_API_KEY` as fallback)
+- `ANTHROPIC_API_KEY`: Anthropic API key (or use `AI_API_KEY` as fallback)
+- `AI_API_KEY`: Generic API key (fallback for both providers)
+- `AI_MODEL`: Optional model override
+- `AI_BASE_URL`: Optional base URL for OpenAI-compatible APIs
+
+**I AM Q Rate Limiting (optional):**
+- `IAMQ_RATE_LIMIT_MAX_REQUESTS`: Max requests per window (default: 20)
+- `IAMQ_RATE_LIMIT_WINDOW_MS`: Time window in milliseconds (default: 600000 = 10 minutes)
+- `IAMQ_MAX_QUESTION_LENGTH`: Max question length (default: 2000)
+
+### Verify Configuration:
+```bash
+# Check if .env.local exists
+ls .env.local
+
+# Verify environment variables are set (without exposing values)
+grep -E "^AI_|^IAMQ_" .env.local | sed 's/=.*/=***/'
+```
+
+### Test I AM Q Endpoint:
+```bash
+# Run smoke test (requires dev server running)
+npm run test:iamq
+
+# Or run unit tests
+npm test -- app/api/iamq/__tests__/route.test.ts
+```
+
+---
+
+## Step 4: Rebuild Missing Components
 
 ### Use PROJECT_STATE.md as Reference
 
@@ -100,18 +139,18 @@ The `PROJECT_STATE.md` file contains:
    - lib/[all-libraries]
    ```
 
-2. **Check Each Page**:
+3. **Check Each Page**:
    - Refer to PROJECT_STATE.md for page requirements
    - Verify page.tsx exists
    - Verify client component exists (if needed)
    - Check for required features
 
-3. **Verify Components**:
+4. **Verify Components**:
    - Check all components listed in PROJECT_STATE.md
    - Verify component props match documentation
    - Check for required dependencies
 
-4. **Check API Endpoints**:
+5. **Check API Endpoints**:
    - Verify all API routes exist
    - Check request/response formats
    - Verify error handling
@@ -327,6 +366,6 @@ git push origin main
 
 ---
 
-**Last Updated**: 2025-01-XX  
+**Last Updated**: 2026-01-11  
 **Version**: 1.0.0
 

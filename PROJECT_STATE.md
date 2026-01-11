@@ -1,7 +1,7 @@
 # QOS ET Quality Report - Complete Project State Documentation
 
-**Last Updated**: 2025-12-14  
-**Version**: 1.0.1  
+**Last Updated**: 2026-01-11  
+**Version**: 1.0.2  
 **Status**: Active Development
 
 This document provides a complete snapshot of the application state, including all pages, components, features, charts, tables, and functionality. Use this document to rebuild the application if data is lost.
@@ -36,6 +36,7 @@ This document provides a complete snapshot of the application state, including a
 - Visualize trends with interactive charts
 - Generate AI-powered insights and recommendations
 - Flexible Excel file import with automatic column detection
+- **Multi-language support** (English, German, Italian) with full translation coverage
 
 ---
 
@@ -49,6 +50,7 @@ This document provides a complete snapshot of the application state, including a
 - **Excel Parsing**: SheetJS (xlsx)
 - **Testing**: Vitest
 - **Package Manager**: pnpm (based on pnpm-lock.yaml)
+- **Internationalization**: Custom i18n system with React hooks
 
 ---
 
@@ -555,7 +557,49 @@ All UI components from Shadcn UI:
 - **Request**: FormData with files
 - **Response**: Upload confirmation
 
-### 7. `/api/test-route` (GET)
+### 7. `/api/iamq` (POST)
+- **File**: `app/api/iamq/route.ts`
+- **Description**: I AM Q - Quality Management AI Assistant chat endpoint
+- **Request**: 
+  ```typescript
+  {
+    question: string;
+    context?: {
+      page?: string;
+      selectedPlants?: string[];
+      dateRange?: { from: string; to: string };
+      complaintTypes?: string[];
+      metrics?: Record<string, unknown>;
+      datasetHealth?: Record<string, unknown>;
+    }
+  }
+  ```
+- **Response**: 
+  - Streaming: `text/plain` with token-by-token text chunks
+  - Non-streaming: `application/json` with `{ answer: string, error?: string, errorType?: string }`
+- **Features**:
+  - Supports OpenAI and Anthropic providers (via `AI_PROVIDER` env var)
+  - Streaming responses for real-time token delivery
+  - Rate limiting (20 requests per 10 minutes per IP)
+  - Input validation (max 2000 characters)
+  - Question classification (chart_explainer mode)
+  - Context-aware responses using dashboard state
+  - Knowledge base integration from FAQ/Glossary
+  - Dataset health awareness
+- **Environment Variables**:
+  - `AI_PROVIDER`: `openai` or `anthropic` (default: `openai`)
+  - `OPENAI_API_KEY`: OpenAI API key (or use `AI_API_KEY` as fallback)
+  - `ANTHROPIC_API_KEY`: Anthropic API key (or use `AI_API_KEY` as fallback)
+  - `AI_API_KEY`: Generic API key (fallback for both providers)
+  - `AI_MODEL`: Optional model override
+  - `AI_BASE_URL`: Optional base URL for OpenAI-compatible APIs
+- **Rate Limiting**: 20 requests per 10 minutes per IP address
+- **Max Duration**: 30 seconds
+- **Testing**: 
+  - Unit tests: `app/api/iamq/__tests__/route.test.ts` (Vitest)
+  - Smoke test: `scripts/test-iamq.ts` (run with `npm run test:iamq`)
+
+### 8. `/api/test-route` (GET)
 - **File**: `app/api/test-route/route.ts`
 - **Description**: Test endpoint
 
@@ -699,6 +743,18 @@ interface DeliveryColumnMapping {
 ### AI Features
 - LLM client interface (`lib/ai/client.ts`)
 - Support for multiple providers (OpenAI, Anthropic)
+  - Provider selection via `AI_PROVIDER` environment variable
+  - Provider-specific API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) or generic `AI_API_KEY` fallback
+  - Streaming responses for both providers
+  - Native system message support for Anthropic
+- I AM Q AI Assistant (`/api/iamq`)
+  - Context-aware responses using dashboard state
+  - Knowledge base integration from FAQ/Glossary
+  - Dataset health awareness
+  - Rate limiting (20 requests per 10 minutes)
+  - Input validation (max 2000 characters)
+  - Question classification (chart_explainer mode)
+  - Streaming token-by-token responses
 - AI insights generation
 - Trend analysis
 - Anomaly detection
@@ -733,6 +789,115 @@ interface DeliveryColumnMapping {
 - Breakpoints: sm, md, lg, xl
 - Responsive charts and tables
 - Adaptive layouts
+
+---
+
+## Internationalization (i18n)
+
+### Supported Languages:
+- **English (en)** - Default
+- **German (de)** - Full translation
+- **Italian (it)** - Full translation
+
+### Translation System:
+- **Translation Files**: `lib/i18n/translations.ts`
+  - Centralized translation definitions for all languages
+  - Structured interface with type-safe keys
+  - Organized by page/section (common, sidebar, dashboard, upload, glossary, etc.)
+- **Translation Hook**: `lib/i18n/useTranslation.ts`
+  - React hook for accessing translations (`useTranslation()`)
+  - Language state management with `localStorage` persistence
+  - Automatic HTML `lang` attribute updates
+  - Event-based language change notifications
+
+### Fully Translated Pages:
+1. **Home Page** (`app/page.tsx`)
+   - Intro content, titles, buttons, footer
+2. **Dashboard** (`app/(dashboard)/dashboard/dashboard-client.tsx`)
+   - All metric tiles, chart titles, descriptions
+   - Table headers (Month, PPM, Change, Defective, Deliveries, TOTAL)
+   - Tooltips ("How to read this chart", "Reset to show all plants")
+   - Filter labels (Notification Types, Defect Types, period selectors)
+   - Chart legends and data keys (Actual PPM, Month Avg Target, Closed, In Progress)
+   - Excel export headers
+3. **Upload Page** (`app/(dashboard)/upload/page.tsx`)
+   - All sections, labels, buttons, placeholders
+4. **Glossary/FAQ Page** (`app/(dashboard)/glossary/glossary-client.tsx`)
+   - All 15 FAQ questions and answers
+   - All 30+ glossary terms and definitions
+   - "How to read key charts" section
+   - Search placeholder, tab labels, category names
+5. **AI Summary Page** (`app/(dashboard)/ai-summary/ai-summary-client.tsx`)
+   - Titles, descriptions, error messages
+6. **Complaints Page** (`app/(dashboard)/complaints/complaints-client.tsx`)
+   - Titles, chart labels, table headers
+7. **PPM Page** (`app/(dashboard)/ppm/ppm-client.tsx`)
+   - Titles, descriptions, legend items
+8. **Deviations Page** (`app/(dashboard)/deviations/deviations-client.tsx`)
+   - Titles, status labels, chart descriptions, tooltips
+9. **PPAPs Page** (`app/(dashboard)/ppaps/ppaps-client.tsx`)
+   - Titles, status labels, chart descriptions, tooltips
+10. **Audit Management Page** (`app/(dashboard)/audit-management/audit-management-client.tsx`)
+    - Titles, descriptions, labels
+11. **Settings Page** (`app/(dashboard)/settings/page.tsx`)
+    - AI Configuration tab (title, description, environment variables info)
+    - Column Mappings tab (title, description, complaint/delivery file mappings)
+    - All buttons, placeholders, helper text
+
+### Fully Translated Components:
+1. **TopBar** (`components/layout/topbar.tsx`)
+   - Header title, language selector labels, theme labels, role labels
+2. **Sidebar** (`components/layout/sidebar.tsx`)
+   - All navigation items, collapse button labels
+3. **Filter Panel** (`components/dashboard/filter-panel.tsx`)
+   - All filter labels, button texts, placeholders
+4. **Role Access Dialog** (`components/auth/role-access-dialog.tsx`)
+   - Dialog title, description, role labels, password placeholders, error messages
+
+### Language Switching:
+- Language selector in header (TopBar) with dropdown
+- Language preference stored in `localStorage` (key: `qos-et-language`)
+- All content updates dynamically when language changes
+- HTML `lang` attribute updated automatically
+- Event-based synchronization across components (`LANGUAGE_CHANGED_EVENT`)
+
+### Translation Structure:
+```typescript
+interface Translations {
+  common: { language, theme, role, ... };
+  sidebar: { dashboard, customerPerformance, ... };
+  dashboard: { title, subtitle, totalPpm, ... };
+  filterPanel: { plant, complaintTypes, ... };
+  home: { title, description, ... };
+  roleAccess: { selectRole, chooseRole, ... };
+  glossary: { title, subtitle, faqs, termsList, ... };
+  upload: { title, description, ... };
+  aiSummary: { title, subtitle, ... };
+  complaints: { title, subtitle, ... };
+  ppm: { title, subtitle, ... };
+  deviations: { title, subtitle, ... };
+  ppaps: { title, subtitle, ... };
+  auditManagement: { title, subtitle, ... };
+  settings: { title, subtitle, aiConfiguration, ... };
+  charts: { howToRead, resetToShowAll, filterLabels, ... };
+}
+```
+
+### Usage Example:
+```typescript
+import { useTranslation } from "@/lib/i18n/useTranslation";
+
+function MyComponent() {
+  const { t, language, setLanguage } = useTranslation();
+  
+  return (
+    <div>
+      <h1>{t.dashboard.title}</h1>
+      <button onClick={() => setLanguage("de")}>Switch to German</button>
+    </div>
+  );
+}
+```
 
 ---
 
