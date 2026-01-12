@@ -472,6 +472,17 @@ export default function UploadPage() {
       const data = allResults;
 
       const summary: Record<string, string | number> = { files: files.length };
+      let conversionStatus: Array<{
+        complaintId: string;
+        notificationNumber: string;
+        status: "converted" | "failed" | "needs_attention" | "not_applicable";
+        originalValue: number;
+        originalUnit: string;
+        convertedValue?: number;
+        error?: string;
+        materialDescription?: string;
+      }> = [];
+      
       if (section === "complaints") {
         const items = Array.isArray(data?.complaints) ? data.complaints : [];
         const totalDefects = items.reduce((sum: number, c: any) => sum + (Number(c?.defectiveParts) || 0), 0);
@@ -486,7 +497,7 @@ export default function UploadPage() {
 
         // Create upload summary with conversion status
         const complaints = items as Complaint[];
-        const conversionStatus = complaints.map(c => {
+        conversionStatus = complaints.map(c => {
           // Determine conversion status
           let status: "converted" | "failed" | "needs_attention" | "not_applicable";
           let error: string | undefined;
@@ -548,6 +559,30 @@ export default function UploadPage() {
       };
 
       persistHistory([entry, ...history]);
+
+      // Create and save upload summary for complaints
+      if (section === "complaints" && conversionStatus.length > 0) {
+        const complaints = Array.isArray(data?.complaints) ? (data.complaints as Complaint[]) : [];
+        const uploadSummary: UploadSummaryEntry = {
+          id: entry.id,
+          uploadedAtIso: entry.uploadedAtIso,
+          section: "complaints",
+          files: entry.files,
+          rawData: { complaints },
+          processedData: { complaints },
+          conversionStatus: { complaints: conversionStatus },
+          changeHistory: [],
+          summary: {
+            totalRecords: complaints.length,
+            recordsWithIssues: conversionStatus.filter(s => s.status === "failed" || s.status === "needs_attention").length,
+            recordsCorrected: 0,
+            recordsUnchanged: complaints.length,
+          },
+        };
+
+        saveUploadSummary(uploadSummary);
+        setUploadSummaries(prev => new Map(prev).set(entry.id, uploadSummary));
+      }
     } catch (e) {
       setProgressBySection((p) => ({ ...p, [section]: { percent: p[section].percent, status: "error" } }));
       setErrors((prev) => ({ ...prev, [section]: e instanceof Error ? e.message : "Upload failed." }));
