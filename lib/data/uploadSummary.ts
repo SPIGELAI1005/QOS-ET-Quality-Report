@@ -232,7 +232,95 @@ const CHANGE_HISTORY_PREFIX = "qos-et-change-history-";
 export function saveUploadSummary(summary: UploadSummaryEntry): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(`${UPLOAD_SUMMARY_PREFIX}${summary.id}`, JSON.stringify(summary));
+    // Optimize storage: Don't store full complaint objects, only essential data
+    // Store only IDs and conversion status, not full objects
+    const optimizedSummary: UploadSummaryEntry = {
+      ...summary,
+      // Store only essential complaint data (IDs, key fields) instead of full objects
+      // Include all required fields to maintain type compatibility
+      rawData: {
+        complaints: summary.rawData.complaints?.map(c => ({
+          id: c.id,
+          notificationNumber: c.notificationNumber,
+          notificationType: c.notificationType,
+          category: c.category,
+          plant: c.plant,
+          siteCode: c.siteCode,
+          siteName: c.siteName,
+          createdOn: c.createdOn,
+          defectiveParts: c.defectiveParts,
+          source: c.source,
+          unitOfMeasure: c.unitOfMeasure,
+          materialDescription: c.materialDescription,
+          conversion: c.conversion,
+        })) || [],
+        deliveries: summary.rawData.deliveries || [],
+      },
+      processedData: {
+        complaints: summary.processedData.complaints?.map(c => ({
+          id: c.id,
+          notificationNumber: c.notificationNumber,
+          notificationType: c.notificationType,
+          category: c.category,
+          plant: c.plant,
+          siteCode: c.siteCode,
+          siteName: c.siteName,
+          createdOn: c.createdOn,
+          defectiveParts: c.defectiveParts,
+          source: c.source,
+          unitOfMeasure: c.unitOfMeasure,
+          materialDescription: c.materialDescription,
+          conversion: c.conversion,
+        })) || [],
+        deliveries: summary.processedData.deliveries || [],
+      },
+    };
+
+    // Try to save, if quota exceeded, clean up old summaries first
+    try {
+      localStorage.setItem(`${UPLOAD_SUMMARY_PREFIX}${summary.id}`, JSON.stringify(optimizedSummary));
+    } catch (quotaError) {
+      if (quotaError instanceof Error && quotaError.name === "QuotaExceededError") {
+        console.warn("[Upload Summary] Quota exceeded, cleaning up old summaries...");
+        // Clean up old summaries (keep only last 5)
+        const allSummaries = getAllUploadSummaries();
+        if (allSummaries.length > 5) {
+          // Sort by date, keep newest 5, delete oldest
+          const sorted = allSummaries.sort((a, b) => 
+            new Date(b.uploadedAtIso).getTime() - new Date(a.uploadedAtIso).getTime()
+          );
+          const toDelete = sorted.slice(5);
+          toDelete.forEach(s => {
+            try {
+              localStorage.removeItem(`${UPLOAD_SUMMARY_PREFIX}${s.id}`);
+            } catch (e) {
+              console.error("[Upload Summary] Failed to delete old summary:", e);
+            }
+          });
+          // Try again after cleanup
+          try {
+            localStorage.setItem(`${UPLOAD_SUMMARY_PREFIX}${summary.id}`, JSON.stringify(optimizedSummary));
+          } catch (retryError) {
+            console.error("[Upload Summary] Still failed after cleanup:", retryError);
+            // Last resort: store only metadata without data
+            const minimalSummary: Partial<UploadSummaryEntry> = {
+              id: summary.id,
+              uploadedAtIso: summary.uploadedAtIso,
+              section: summary.section,
+              files: summary.files,
+              conversionStatus: summary.conversionStatus,
+              changeHistory: summary.changeHistory,
+              summary: summary.summary,
+            };
+            localStorage.setItem(`${UPLOAD_SUMMARY_PREFIX}${summary.id}`, JSON.stringify(minimalSummary));
+          }
+        } else {
+          throw quotaError;
+        }
+      } else {
+        throw quotaError;
+      }
+    }
   } catch (e) {
     console.error("[Upload Summary] Failed to save summary:", e);
   }

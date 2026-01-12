@@ -43,16 +43,41 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
   const [filterByUnit, setFilterByUnit] = useState<string>("all");
   const [filterByType, setFilterByType] = useState<string>("all");
 
+  const conversionStatus = summary.conversionStatus.complaints || [];
+
   const allComplaints = useMemo(() => {
     // Use edited complaints if available, otherwise use processed data, fallback to raw
     const base = summary.processedData.complaints || summary.rawData.complaints || [];
+    // Handle case where stored data might be minimal (only essential fields)
+    // If complaints don't have all required fields, we need to reconstruct from conversionStatus
+    const fullComplaints = base.map(c => {
+      // If complaint is already full, return as is
+      if ('siteName' in c || (c as any).materialDescription !== undefined) {
+        return c as Complaint;
+      }
+      // Otherwise, reconstruct minimal complaint from stored data
+      const status = conversionStatus.find(s => s.complaintId === c.id);
+      return {
+        id: c.id,
+        notificationNumber: c.notificationNumber || '',
+        notificationType: (c.notificationType || 'Q1') as any,
+        category: (c as any).category || 'CustomerComplaint' as any,
+        plant: (c as any).plant || c.siteCode || '',
+        siteCode: c.siteCode || '',
+        siteName: (c as any).siteName,
+        createdOn: c.createdOn || new Date().toISOString(),
+        defectiveParts: status?.originalValue || (c as any).defectiveParts || 0,
+        source: (c as any).source || 'Import' as any,
+        unitOfMeasure: status?.originalUnit || (c as any).unitOfMeasure || 'PC',
+        materialDescription: status?.materialDescription || (c as any).materialDescription || '',
+        conversion: (c as any).conversion,
+      } as Complaint;
+    });
     const edited = Array.from(editedComplaints.values());
     const editedIds = new Set(edited.map(c => c.id));
-    const unchanged = base.filter(c => !editedIds.has(c.id));
+    const unchanged = fullComplaints.filter(c => !editedIds.has(c.id));
     return [...unchanged, ...edited];
-  }, [summary, editedComplaints]);
-
-  const conversionStatus = summary.conversionStatus.complaints || [];
+  }, [summary, editedComplaints, conversionStatus]);
   
   // Get unique values for filters
   const availablePlants = useMemo(() => {

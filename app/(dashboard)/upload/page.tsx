@@ -1201,7 +1201,7 @@ export default function UploadPage() {
                         const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
                         const out: string[] = [];
                         for (const y of years) for (let m = 1; m <= 12; m++) out.push(`${y}-${String(m).padStart(2, "0")}`);
-                        return out;
+                        return out.filter(m => m && m.trim() !== ""); // Filter out empty strings
                       })().map((m) => (
                         <SelectItem key={m} value={m}>
                           {m}
