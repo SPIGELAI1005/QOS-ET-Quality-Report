@@ -126,6 +126,7 @@ export function IAmQChatPanel({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copiedDiagnostics, setCopiedDiagnostics] = useState(false);
   const [showMorePrompts, setShowMorePrompts] = useState(false);
+  const [showStarterPrompts, setShowStarterPrompts] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -570,31 +571,42 @@ export function IAmQChatPanel({
         <SheetHeader className="px-6 py-4 border-b border-border/40">
           <div className="flex items-center justify-between">
             <SheetTitle>I A:M Q</SheetTitle>
-            <Button
-              onClick={handleCopyDiagnostics}
-              variant="outline"
-              size="sm"
-              className="h-8 px-3 text-xs border-border/40"
-              title="Copy diagnostics JSON"
-            >
-              {copiedDiagnostics ? (
-                <>
-                  <Check className="h-3.5 w-3.5 mr-1.5" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5 mr-1.5" />
-                  Copy diagnostics
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setShowStarterPrompts(true)}
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-xs border-border/40"
+                title="Show starter prompts"
+              >
+                Starter prompts
+              </Button>
+              <Button
+                onClick={handleCopyDiagnostics}
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-xs border-border/40"
+                title="Copy diagnostics JSON"
+              >
+                {copiedDiagnostics ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 mr-1.5" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 mr-1.5" />
+                    Copy diagnostics
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </SheetHeader>
 
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {messages.length === 0 && (
+          {messages.length === 0 && !showStarterPrompts && (
             <div className="flex flex-col items-center justify-center h-full space-y-6">
               <div className="text-center text-muted-foreground text-sm mb-4">
                 Ask me anything about quality management, KPIs, or your data.
@@ -644,6 +656,66 @@ export function IAmQChatPanel({
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show starter prompts when button is clicked (even with messages) */}
+          {showStarterPrompts && (
+            <div className="w-full max-w-md mx-auto space-y-4 mb-6 p-4 rounded-lg border border-border/40 bg-muted/20">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-medium text-foreground">
+                  Starter prompts
+                </div>
+                <Button
+                  onClick={() => setShowStarterPrompts(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                >
+                  Close
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {STARTER_PROMPTS.slice(0, 10).map((prompt, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      handleSend(prompt);
+                      setShowStarterPrompts(false);
+                    }}
+                    className="text-left px-4 py-2.5 rounded-lg text-sm bg-muted/50 hover:bg-muted/80 border border-border/40 hover:border-primary/40 transition-all text-foreground hover:text-primary cursor-pointer backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+                
+                {/* Show more button */}
+                {!showMorePrompts && STARTER_PROMPTS.length > 10 && (
+                  <button
+                    onClick={() => setShowMorePrompts(true)}
+                    className="text-left px-4 py-2.5 rounded-lg text-sm bg-muted/30 hover:bg-muted/60 border border-border/40 hover:border-primary/40 transition-all text-muted-foreground hover:text-primary cursor-pointer backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading}
+                  >
+                    Show more...
+                  </button>
+                )}
+                
+                {/* Remaining prompts (shown when "Show more" is clicked) */}
+                {showMorePrompts && STARTER_PROMPTS.slice(10).map((prompt, index) => (
+                  <button
+                    key={index + 10}
+                    onClick={() => {
+                      handleSend(prompt);
+                      setShowStarterPrompts(false);
+                    }}
+                    className="text-left px-4 py-2.5 rounded-lg text-sm bg-muted/50 hover:bg-muted/80 border border-border/40 hover:border-primary/40 transition-all text-foreground hover:text-primary cursor-pointer backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading}
+                  >
+                    {prompt}
+                  </button>
+                ))}
               </div>
             </div>
           )}

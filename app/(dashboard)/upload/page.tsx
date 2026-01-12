@@ -15,11 +15,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Loader2, FileSpreadsheet, X, CheckCircle2, ExternalLink, Plus, History, Download, Check } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, X, CheckCircle2, ExternalLink, Plus, History, Download, Check, Table2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { MonthlySiteKpi } from "@/lib/domain/types";
 import * as XLSX from "xlsx";
 import { ROLE_CHANGED_EVENT, ROLE_STORAGE_KEY, type RoleKey } from "@/lib/auth/roles";
+import { dispatchKpiDataUpdated } from "@/lib/data/events";
+import { UploadSummaryTable } from "@/components/upload/upload-summary-table";
+import { ChangeHistoryPanel } from "@/components/upload/change-history-panel";
+import type { UploadSummaryEntry, ChangeHistoryEntry } from "@/lib/data/uploadSummary";
+import { saveUploadSummary, loadUploadSummary, saveChangeHistory, loadChangeHistory } from "@/lib/data/uploadSummary";
+import { applyComplaintCorrections, applyDeliveryCorrections } from "@/lib/data/correctedData";
+import type { Complaint } from "@/lib/domain/types";
 
 type UploadSectionKey =
   | "complaints"
@@ -110,11 +117,31 @@ async function postFormDataWithProgress<T>(
 
     xhr.onload = () => {
       try {
-        const json = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+        // Check if response is HTML (error page) instead of JSON
+        const contentType = xhr.getResponseHeader("content-type") || "";
+        const responseText = xhr.responseText || "";
+        
+        if (!contentType.includes("application/json")) {
+          // Try to extract error message from HTML if possible
+          const errorMatch = responseText.match(/<title[^>]*>([^<]+)<\/title>/i) || 
+                            responseText.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
+                            responseText.match(/Request Error|Error|Timeout/i);
+          const errorMsg = errorMatch ? errorMatch[1] || errorMatch[0] : "Server returned non-JSON response";
+          reject(new Error(`Upload failed: ${errorMsg} (HTTP ${xhr.status})`));
+          return;
+        }
+        
+        const json = responseText ? JSON.parse(responseText) : {};
         if (xhr.status >= 200 && xhr.status < 300) resolve(json as T);
         else reject(new Error(json?.error || `Upload failed (HTTP ${xhr.status})`));
       } catch (e) {
-        reject(new Error("Upload failed: invalid server response"));
+        // Better error message for JSON parse errors
+        const errorMsg = e instanceof Error ? e.message : "Unknown error";
+        if (errorMsg.includes("Unexpected token")) {
+          reject(new Error("Upload failed: Server returned invalid response (possibly a timeout or error page). Please try again with smaller files or check server logs."));
+        } else {
+          reject(new Error(`Upload failed: ${errorMsg}`));
+        }
       }
     };
 
@@ -155,6 +182,11 @@ export default function UploadPage() {
   const [history, setHistory] = useState<UploadHistoryEntry[]>([]);
   const [kpisResult, setKpisResult] = useState<UploadKpisResponse | null>(null);
   const [plantsData, setPlantsData] = useState<PlantData[]>([]);
+  const [calculatingKpis, setCalculatingKpis] = useState(false);
+  const [kpiCalculationProgress, setKpiCalculationProgress] = useState<{ percent: number; status: "idle" | "calculating" | "success" | "error" }>({
+    percent: 0,
+    status: "idle",
+  });
 
   const [progressBySection, setProgressBySection] = useState<
     Record<UploadSectionKey, { percent: number; status: "idle" | "uploading" | "success" | "error" }>
@@ -166,6 +198,20 @@ export default function UploadPage() {
     audit: { percent: 0, status: "idle" },
     plants: { percent: 0, status: "idle" },
   });
+
+  // Check if complaints and deliveries are successfully uploaded
+  const complaintsUploaded = useMemo(
+    () => progressBySection.complaints.status === "success" && complaintsFiles.length > 0,
+    [progressBySection.complaints.status, complaintsFiles.length]
+  );
+  const deliveriesUploaded = useMemo(
+    () => progressBySection.deliveries.status === "success" && deliveriesFiles.length > 0,
+    [progressBySection.deliveries.status, deliveriesFiles.length]
+  );
+  const canCalculate = useMemo(
+    () => complaintsUploaded && deliveriesUploaded && !calculatingKpis,
+    [complaintsUploaded, deliveriesUploaded, calculatingKpis]
+  );
   const [uploadedFileNamesBySection, setUploadedFileNamesBySection] = useState<Record<UploadSectionKey, string[]>>({
     complaints: [],
     deliveries: [],
@@ -176,6 +222,7 @@ export default function UploadPage() {
   });
 
   const [manualEntries, setManualEntries] = useState<ManualKpiEntry[]>([]);
+  const [uploadSummaries, setUploadSummaries] = useState<Map<string, UploadSummaryEntry>>(new Map());
   const [manualDraft, setManualDraft] = useState<{
     month: string;
     siteCode: string;
@@ -265,7 +312,16 @@ export default function UploadPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedHistory = safeJsonParse<UploadHistoryEntry[]>(localStorage.getItem("qos-et-upload-history"));
-    if (storedHistory) setHistory(storedHistory);
+    if (storedHistory) {
+      setHistory(storedHistory);
+      // Load upload summaries for all history entries
+      const summaries = new Map<string, UploadSummaryEntry>();
+      storedHistory.forEach(entry => {
+        const summary = loadUploadSummary(entry.id);
+        if (summary) summaries.set(entry.id, summary);
+      });
+      setUploadSummaries(summaries);
+    }
 
     const storedManual = safeJsonParse<ManualKpiEntry[]>(localStorage.getItem("qos-et-manual-kpis"));
     if (storedManual) setManualEntries(storedManual);
@@ -360,6 +416,55 @@ export default function UploadPage() {
         summary.q2 = q2;
         summary.q3 = q3;
         summary.totalDefectiveParts = totalDefects;
+
+        // Create upload summary with conversion status
+        const complaints = items as Complaint[];
+        const conversionStatus = complaints.map(c => {
+          // Determine conversion status
+          let status: "converted" | "failed" | "needs_attention" | "not_applicable";
+          let error: string | undefined;
+          
+          if (!c.unitOfMeasure || c.unitOfMeasure.toUpperCase() === "PC") {
+            status = "not_applicable";
+          } else if (c.conversion?.wasConverted) {
+            status = "converted";
+          } else {
+            // Conversion was attempted but failed
+            status = "failed";
+            error = `Could not convert ${c.defectiveParts} ${c.unitOfMeasure} to PC. Using original value.`;
+          }
+          
+          return {
+            complaintId: c.id,
+            notificationNumber: c.notificationNumber,
+            status,
+            originalValue: c.defectiveParts,
+            originalUnit: c.unitOfMeasure || "PC",
+            convertedValue: c.conversion?.convertedValue,
+            error,
+            materialDescription: c.materialDescription,
+          };
+        });
+
+        const uploadSummary: UploadSummaryEntry = {
+          id: entry.id,
+          uploadedAtIso: entry.uploadedAtIso,
+          section: "complaints",
+          files: entry.files,
+          rawData: { complaints },
+          processedData: { complaints },
+          conversionStatus: { complaints: conversionStatus },
+          changeHistory: [],
+          summary: {
+            totalRecords: complaints.length,
+            recordsWithIssues: conversionStatus.filter(s => s.status === "failed" || s.status === "needs_attention").length,
+            recordsCorrected: 0,
+            recordsUnchanged: complaints.length,
+          },
+        };
+
+        saveUploadSummary(uploadSummary);
+        setUploadSummaries(prev => new Map(prev).set(entry.id, uploadSummary));
       }
       if (section === "deliveries") {
         const items = Array.isArray(data?.deliveries) ? data.deliveries : [];
@@ -424,19 +529,63 @@ export default function UploadPage() {
       }));
       return;
     }
+    
+    setCalculatingKpis(true);
+    setKpiCalculationProgress({ percent: 0, status: "calculating" });
+    
     try {
       const formData = new FormData();
       complaintsFiles.forEach((f) => formData.append("complaintsFiles", f));
       deliveriesFiles.forEach((f) => formData.append("deliveryFiles", f));
-      const res = await fetch("/api/upload-kpis", { method: "POST", body: formData });
-      const json = (await res.json()) as UploadKpisResponse & { error?: string };
-      if (!res.ok) throw new Error(json?.error || `KPI calculation failed (HTTP ${res.status})`);
+      
+      // Use XMLHttpRequest for progress tracking
+      const result = await new Promise<UploadKpisResponse>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/upload-kpis");
+        
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            // Upload progress: 0-50%
+            const uploadPercent = Math.round((e.loaded / e.total) * 50);
+            setKpiCalculationProgress({ percent: uploadPercent, status: "calculating" });
+          }
+        };
+        
+        xhr.onload = () => {
+          try {
+            // Processing progress: 50-100%
+            setKpiCalculationProgress({ percent: 75, status: "calculating" });
+            
+            const contentType = xhr.getResponseHeader("content-type") || "";
+            if (!contentType.includes("application/json")) {
+              reject(new Error(`KPI calculation failed: Server returned non-JSON response (HTTP ${xhr.status}). This may indicate a timeout or server error.`));
+              return;
+            }
+            
+            const json = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setKpiCalculationProgress({ percent: 100, status: "success" });
+              resolve(json as UploadKpisResponse);
+            } else {
+              reject(new Error(json?.error || `KPI calculation failed (HTTP ${xhr.status})`));
+            }
+          } catch (e) {
+            const errorMsg = e instanceof Error ? e.message : "Unknown error";
+            reject(new Error(`KPI calculation failed: ${errorMsg}`));
+          }
+        };
+        
+        xhr.onerror = () => reject(new Error("KPI calculation failed: network error"));
+        xhr.send(formData);
+      });
 
-      setKpisResult(json);
+      setKpisResult(result);
       if (typeof window !== "undefined") {
-        localStorage.setItem("qos-et-kpis", JSON.stringify(json.monthlySiteKpis));
-        localStorage.setItem("qos-et-global-ppm", JSON.stringify(json.globalPpm));
-        localStorage.setItem("qos-et-upload-kpis-result", JSON.stringify(json));
+        localStorage.setItem("qos-et-kpis", JSON.stringify(result.monthlySiteKpis));
+        localStorage.setItem("qos-et-global-ppm", JSON.stringify(result.globalPpm));
+        localStorage.setItem("qos-et-upload-kpis-result", JSON.stringify(result));
+        // Notify other components that KPI data has been updated
+        dispatchKpiDataUpdated();
       }
 
       const entry: UploadHistoryEntry = {
@@ -448,9 +597,9 @@ export default function UploadPage() {
           ...deliveriesFiles.map((f) => ({ name: f.name, size: f.size })),
         ],
         summary: {
-          totalComplaints: json.summary.totalComplaints,
-          totalDeliveries: json.summary.totalDeliveries,
-          siteMonthCombinations: json.summary.siteMonthCombinations,
+          totalComplaints: result.summary.totalComplaints,
+          totalDeliveries: result.summary.totalDeliveries,
+          siteMonthCombinations: result.summary.siteMonthCombinations,
         },
         usedIn: ["QOS ET Dashboard", "Customer Performance", "Supplier Performance", "AI Management Summary"],
         success: true,
@@ -458,6 +607,7 @@ export default function UploadPage() {
       };
       persistHistory([entry, ...history]);
     } catch (e) {
+      setKpiCalculationProgress({ percent: 0, status: "error" });
       setErrors((prev) => ({ ...prev, deliveries: e instanceof Error ? e.message : "Failed to calculate KPIs." }));
       const entry: UploadHistoryEntry = {
         id: makeId("kpis_error"),
@@ -473,6 +623,8 @@ export default function UploadPage() {
         notes: e instanceof Error ? e.message : "Failed to calculate KPIs.",
       };
       persistHistory([entry, ...history]);
+    } finally {
+      setCalculatingKpis(false);
     }
   }
 
@@ -646,6 +798,13 @@ export default function UploadPage() {
               {t.upload.enterData}
             </TabsTrigger>
             <TabsTrigger
+              value="summary"
+              className="text-base font-semibold px-4 data-[state=active]:bg-[#00FF88] data-[state=active]:text-black data-[state=active]:shadow-sm"
+            >
+              <Table2 className="h-4 w-4 mr-2" />
+              Upload Summary
+            </TabsTrigger>
+            <TabsTrigger
               value="history"
               className="text-base font-semibold px-4 data-[state=active]:bg-[#00FF88] data-[state=active]:text-black data-[state=active]:shadow-sm"
             >
@@ -801,18 +960,107 @@ export default function UploadPage() {
               <CardDescription>{t.upload.recalculateKpisDescription}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={recalculateKpis} disabled={complaintsFiles.length === 0 || deliveriesFiles.length === 0}>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                {t.upload.calculateKpis}
+              <Button 
+                onClick={recalculateKpis} 
+                disabled={!canCalculate || calculatingKpis}
+                className={
+                  canCalculate && !calculatingKpis
+                    ? "bg-[#00FF88] hover:bg-[#00FF88]/90 text-black font-semibold"
+                    : ""
+                }
+              >
+                {calculatingKpis ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {t.upload.calculatingKpis || "Calculating KPIs..."}
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    {t.upload.calculateKpis}
+                  </>
+                )}
               </Button>
-              {kpisResult && (
-                <div className="rounded-md border p-3 text-sm text-muted-foreground">
-                  <div className="font-medium text-foreground mb-1">{t.upload.latestKpiCalculation}</div>
-                  <div>{t.upload.complaints} {formatGermanInt(kpisResult.summary.totalComplaints)}</div>
-                  <div>{t.upload.deliveries} {formatGermanInt(kpisResult.summary.totalDeliveries)}</div>
-                  <div>{t.upload.siteMonthKpis} {formatGermanInt(kpisResult.summary.siteMonthCombinations)}</div>
+              
+              {/* KPI Calculation Progress */}
+              {kpiCalculationProgress.status !== "idle" && (
+                <div className="rounded-md bg-muted/40 border border-border/60 p-3">
+                  <div className="flex items-center justify-between gap-3 text-sm mb-2">
+                    <div className="text-muted-foreground">
+                      {kpiCalculationProgress.status === "calculating"
+                        ? t.upload.calculatingKpis || "Calculating KPIs..."
+                        : kpiCalculationProgress.status === "success"
+                        ? t.upload.calculationCompleted || "Calculation completed"
+                        : t.upload.calculationFailed || "Calculation failed"}
+                    </div>
+                    <div
+                      className="font-medium"
+                      style={{
+                        color:
+                          kpiCalculationProgress.status === "success"
+                            ? "#00FF88"
+                            : kpiCalculationProgress.status === "calculating"
+                            ? "rgba(0,255,136,0.8)"
+                            : "#ef4444",
+                      }}
+                    >
+                      {kpiCalculationProgress.percent}%
+                    </div>
+                  </div>
+                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full transition-all duration-300 ease-out"
+                      style={{
+                        width: `${Math.min(kpiCalculationProgress.percent, 100)}%`,
+                        backgroundColor:
+                          kpiCalculationProgress.status === "success"
+                            ? "#00FF88"
+                            : kpiCalculationProgress.status === "calculating"
+                            ? "rgba(0,255,136,0.8)"
+                            : "#ef4444",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* KPI Calculation Results */}
+              {kpisResult && kpiCalculationProgress.status === "success" && (
+                <div className="rounded-md border p-3 text-sm">
+                  <div className="font-medium text-foreground mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" style={{ color: "#00FF88" }} />
+                    {t.upload.latestKpiCalculation}
+                  </div>
+                  <div className="space-y-1 text-muted-foreground">
+                    <div>
+                      <span className="font-medium text-foreground">{t.upload.complaints}:</span> {formatGermanInt(kpisResult.summary.totalComplaints)}
+                    </div>
+                    <div>
+                      <span className="font-medium text-foreground">{t.upload.deliveries}:</span> {formatGermanInt(kpisResult.summary.totalDeliveries)}
+                    </div>
+                    <div>
+                      <span className="font-medium text-foreground">{t.upload.siteMonthKpis}:</span> {formatGermanInt(kpisResult.summary.siteMonthCombinations)}
+                    </div>
+                    {kpisResult.globalPpm && (
+                      <>
+                        <Separator className="my-2" />
+                        <div>
+                          <span className="font-medium text-foreground">Customer PPM:</span>{" "}
+                          {kpisResult.globalPpm.customerPpm !== null
+                            ? formatGermanInt(Math.round(kpisResult.globalPpm.customerPpm))
+                            : "N/A"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">Supplier PPM:</span>{" "}
+                          {kpisResult.globalPpm.supplierPpm !== null
+                            ? formatGermanInt(Math.round(kpisResult.globalPpm.supplierPpm))
+                            : "N/A"}
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <Separator className="my-2" />
-                  <Button onClick={() => router.push("/dashboard")} className="bg-[#00FF00] hover:bg-[#00FF00]/90 text-black font-semibold">
+                  <Button onClick={() => router.push("/dashboard")} className="bg-[#00FF88] hover:bg-[#00FF88]/90 text-black font-semibold w-full">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     {t.upload.openDashboard}
                   </Button>
@@ -1026,6 +1274,58 @@ export default function UploadPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="summary" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Summary</CardTitle>
+              <CardDescription>
+                Review imported data and correct any conversion issues. Changes are tracked in the change history.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {Array.from(uploadSummaries.values()).length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No upload summaries available. Upload files to see the summary table.
+                </div>
+              ) : (
+                Array.from(uploadSummaries.values())
+                  .sort((a, b) => new Date(b.uploadedAtIso).getTime() - new Date(a.uploadedAtIso).getTime())
+                  .map((summary) => (
+                    <div key={summary.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">
+                            {sectionMeta[summary.section]?.title || summary.section}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Uploaded: {new Date(summary.uploadedAtIso).toLocaleString("de-DE")}
+                          </div>
+                        </div>
+                        <Badge variant="secondary">
+                          {summary.summary.totalRecords} records
+                          {summary.summary.recordsWithIssues > 0 && (
+                            <span className="ml-2 text-amber-600">
+                              • {summary.summary.recordsWithIssues} with issues
+                            </span>
+                          )}
+                        </Badge>
+                      </div>
+                      <UploadSummaryTable
+                        summary={summary}
+                        onSave={(updatedSummary, changes) => {
+                          saveUploadSummary(updatedSummary);
+                          saveChangeHistory(updatedSummary.id, changes);
+                          setUploadSummaries(prev => new Map(prev).set(updatedSummary.id, updatedSummary));
+                        }}
+                        editorRole={role === "editor"}
+                      />
+                    </div>
+                  ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="history" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1064,6 +1364,13 @@ export default function UploadPage() {
             )}
         </CardContent>
       </Card>
+
+          {/* Change History Panel */}
+          {Array.from(uploadSummaries.values()).some(s => s.changeHistory.length > 0) && (
+            <ChangeHistoryPanel
+              changes={Array.from(uploadSummaries.values()).flatMap(s => s.changeHistory)}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

@@ -470,11 +470,15 @@ export interface Translations {
         legendClickFilter: { term: string; definition: string };
         fixedYAxis: { term: string; definition: string };
       };
-      ai: {
-        aiSummary: { term: string; definition: string };
-        aiManagementSummary: { term: string; definition: string };
-        providerApiKey: { term: string; definition: string };
-      };
+        ai: {
+          aiSummary: { term: string; definition: string };
+          aiManagementSummary: { term: string; definition: string };
+          providerApiKey: { term: string; definition: string };
+          iAmQ: { term: string; definition: string };
+          aiContext: { term: string; definition: string };
+          aiDataAnalysis: { term: string; definition: string };
+          starterPrompts: { term: string; definition: string };
+        };
       general: {
         sitePlantCode: { term: string; definition: string };
         uploadHistory: { term: string; definition: string };
@@ -497,6 +501,12 @@ export interface Translations {
       aiSummaryPlantLabels: { q: string; a: string };
       dataLineage: { q: string; a: string };
       reportIssue: { q: string; a: string };
+      whatIsIAmQ: { q: string; a: string };
+      howToUseIAmQ: { q: string; a: string };
+      uploadFileFormats: { q: string; a: string };
+      uploadProgressTracking: { q: string; a: string };
+      howAiAnalyzesData: { q: string; a: string };
+      aiDataContext: { q: string; a: string };
     };
   };
   settings: {
@@ -950,6 +960,10 @@ const translations: Record<LanguageKey, Translations> = {
           aiSummary: { term: "AI Summary", definition: "LLM-generated narrative summary of filtered KPIs with trends, risks, and recommended actions." },
           aiManagementSummary: { term: "AI Management Summary", definition: "Central page that summarizes KPIs and highlights anomalies and actions (German number formatting, plant labels included)." },
           providerApiKey: { term: "Provider / API key", definition: "Configured LLM backend (e.g., OpenAI-compatible or Anthropic) used by the AI Summary API route." },
+          iAmQ: { term: "I AM Q", definition: "AI assistant integrated into the QOS ET Dashboard that helps users understand metrics, interpret charts, navigate filters, and analyze data. Provides contextual answers based on current dashboard state and filtered KPI data." },
+          aiContext: { term: "AI Context", definition: "Dashboard state information (filters, selected sites, metrics, KPI data) sent to AI features to provide contextual, data-driven responses. Includes monthly site KPIs, global PPM, dataset health, and current page context." },
+          aiDataAnalysis: { term: "AI Data Analysis", definition: "AI-powered analysis of dashboard KPIs that identifies trends, compares sites, detects anomalies, and provides actionable recommendations. Uses actual data from monthly site KPIs and global PPM calculations." },
+          starterPrompts: { term: "Starter Prompts", definition: "Pre-written questions in I AM Q that users can click to quickly ask common questions about trends, PPM analysis, recommendations, chart interpretation, or data health." },
         },
         general: {
           sitePlantCode: { term: "Site / Plant Code", definition: "3-digit code identifying a manufacturing site (e.g., 145, 235, 410). Displayed with city/location when available." },
@@ -1017,6 +1031,30 @@ const translations: Record<LanguageKey, Translations> = {
         reportIssue: {
           q: "How do I report an issue?",
           a: "Use the Contact button on this page. It opens an email with a template including issue title and helpful context (page, timestamp, last uploads).",
+        },
+        whatIsIAmQ: {
+          q: "What is I AM Q and how does it work?",
+          a: "I AM Q is an AI assistant integrated into the QOS ET Dashboard. It helps you understand dashboard metrics, interpret charts, navigate filters, and troubleshoot issues. I AM Q has access to your current dashboard data and can analyze trends, compare sites, identify anomalies, and provide actionable recommendations based on actual KPI data. You can ask questions in natural language and get contextual answers specific to your filtered view.",
+        },
+        howToUseIAmQ: {
+          q: "How do I use I AM Q?",
+          a: "Click the chat icon in the top bar to open I AM Q. You can ask questions about metrics, charts, data uploads, or request analysis of your current dashboard data. I AM Q includes starter prompts you can click to quickly ask common questions. The assistant understands context from your current filters, selected sites, and the data displayed on the page you're viewing.",
+        },
+        uploadFileFormats: {
+          q: "What file formats are supported for upload?",
+          a: "The upload page supports Excel files (.xlsx, .xls, .XLSX, .XLS). Each section (Complaints, Deliveries, PPAP, Deviations, Plants) has specific file requirements. You can upload multiple files per section. After uploading complaints and deliveries files, use the 'Calculate KPIs' button to process the data and update the dashboard.",
+        },
+        uploadProgressTracking: {
+          q: "How does upload progress tracking work?",
+          a: "Each upload section shows a progress bar that tracks file upload progress (0-100%). After successful upload, you'll see a green checkmark and the section status changes to 'success'. For KPI calculation, a separate progress bar shows upload progress (0-50%), server processing (50-75%), and completion (75-100%). The 'Calculate KPIs' button turns green when both complaints and deliveries are successfully uploaded.",
+        },
+        howAiAnalyzesData: {
+          q: "How does AI analyze dashboard data?",
+          a: "The AI features (AI Summary and I AM Q) analyze your actual KPI data including monthly site KPIs, global PPM values, and filtered metrics. They identify trends over time, compare sites (best vs worst performers), detect anomalies and spikes, and provide specific recommendations with site codes, months, and values. The AI uses Quality Management terminology and references plant locations from the official plant master data.",
+        },
+        aiDataContext: {
+          q: "What data context does AI have access to?",
+          a: "AI features receive context about your current dashboard state: selected plants, date ranges, notification types, complaint types, filtered KPIs, monthly site data, global PPM values, and dataset health status. I AM Q also knows which page you're viewing and can reference specific charts, metrics, and filters. The AI never invents data - it only references what's actually in your dataset.",
         },
       },
     },
@@ -1519,6 +1557,10 @@ const translations: Record<LanguageKey, Translations> = {
           aiSummary: { term: "KI-Zusammenfassung", definition: "Von LLM generierte narrative Zusammenfassung gefilterter KPIs mit Trends, Risiken und empfohlenen Maßnahmen." },
           aiManagementSummary: { term: "KI-Management-Zusammenfassung", definition: "Zentrale Seite, die KPIs zusammenfasst und Anomalien und Maßnahmen hervorhebt (deutsche Zahlenformatierung, Werkbezeichnungen enthalten)." },
           providerApiKey: { term: "Anbieter / API-Schlüssel", definition: "Konfiguriertes LLM-Backend (z.B. OpenAI-kompatibel oder Anthropic), das von der KI-Zusammenfassungs-API-Route verwendet wird." },
+          iAmQ: { term: "I AM Q", definition: "KI-Assistent, der in das QOS ET Dashboard integriert ist und Benutzern hilft, Metriken zu verstehen, Diagramme zu interpretieren, Filter zu navigieren und Daten zu analysieren. Bietet kontextbezogene Antworten basierend auf dem aktuellen Dashboard-Zustand und gefilterten KPI-Daten." },
+          aiContext: { term: "KI-Kontext", definition: "Dashboard-Zustandsinformationen (Filter, ausgewählte Standorte, Metriken, KPI-Daten), die an KI-Funktionen gesendet werden, um kontextbezogene, datengesteuerte Antworten zu liefern. Enthält monatliche Standort-KPIs, globalen PPM, Datensatz-Gesundheitsstatus und aktuellen Seitenkontext." },
+          aiDataAnalysis: { term: "KI-Datenanalyse", definition: "KI-gestützte Analyse von Dashboard-KPIs, die Trends identifiziert, Standorte vergleicht, Anomalien erkennt und umsetzbare Empfehlungen gibt. Verwendet tatsächliche Daten aus monatlichen Standort-KPIs und globalen PPM-Berechnungen." },
+          starterPrompts: { term: "Starter-Prompts", definition: "Vorgefertigte Fragen in I AM Q, auf die Benutzer klicken können, um schnell häufige Fragen zu Trends, PPM-Analyse, Empfehlungen, Diagramm-Interpretation oder Daten-Gesundheit zu stellen." },
         },
         general: {
           sitePlantCode: { term: "Standort / Werkcode", definition: "3-stelliger Code zur Identifizierung eines Fertigungsstandorts (z.B. 145, 235, 410). Wird mit Stadt/Standort angezeigt, wenn verfügbar." },
@@ -1586,6 +1628,30 @@ const translations: Record<LanguageKey, Translations> = {
         reportIssue: {
           q: "Wie melde ich ein Problem?",
           a: "Verwenden Sie die Kontakt-Schaltfläche auf dieser Seite. Es öffnet eine E-Mail mit einer Vorlage, die Problemtitel und hilfreichen Kontext (Seite, Zeitstempel, letzte Uploads) enthält.",
+        },
+        whatIsIAmQ: {
+          q: "Was ist I AM Q und wie funktioniert es?",
+          a: "I AM Q ist ein KI-Assistent, der in das QOS ET Dashboard integriert ist. Es hilft Ihnen, Dashboard-Metriken zu verstehen, Diagramme zu interpretieren, Filter zu navigieren und Probleme zu beheben. I AM Q hat Zugriff auf Ihre aktuellen Dashboard-Daten und kann Trends analysieren, Standorte vergleichen, Anomalien identifizieren und umsetzbare Empfehlungen basierend auf tatsächlichen KPI-Daten geben. Sie können Fragen in natürlicher Sprache stellen und kontextbezogene Antworten erhalten, die spezifisch für Ihre gefilterte Ansicht sind.",
+        },
+        howToUseIAmQ: {
+          q: "Wie verwende ich I AM Q?",
+          a: "Klicken Sie auf das Chat-Symbol in der oberen Leiste, um I AM Q zu öffnen. Sie können Fragen zu Metriken, Diagrammen, Daten-Uploads stellen oder eine Analyse Ihrer aktuellen Dashboard-Daten anfordern. I AM Q enthält Starter-Prompts, auf die Sie klicken können, um schnell häufige Fragen zu stellen. Der Assistent versteht den Kontext aus Ihren aktuellen Filtern, ausgewählten Standorten und den auf der Seite angezeigten Daten.",
+        },
+        uploadFileFormats: {
+          q: "Welche Dateiformate werden für den Upload unterstützt?",
+          a: "Die Upload-Seite unterstützt Excel-Dateien (.xlsx, .xls, .XLSX, .XLS). Jeder Bereich (Reklamationen, Lieferungen, PPAP, Abweichungen, Werke) hat spezifische Dateianforderungen. Sie können mehrere Dateien pro Bereich hochladen. Nach dem Hochladen von Reklamations- und Lieferungsdateien verwenden Sie die Schaltfläche 'KPIs berechnen', um die Daten zu verarbeiten und das Dashboard zu aktualisieren.",
+        },
+        uploadProgressTracking: {
+          q: "Wie funktioniert die Upload-Fortschrittsverfolgung?",
+          a: "Jeder Upload-Bereich zeigt eine Fortschrittsleiste, die den Datei-Upload-Fortschritt (0-100%) verfolgt. Nach erfolgreichem Upload sehen Sie ein grünes Häkchen und der Bereichsstatus ändert sich auf 'Erfolg'. Für die KPI-Berechnung zeigt eine separate Fortschrittsleiste den Upload-Fortschritt (0-50%), die Server-Verarbeitung (50-75%) und den Abschluss (75-100%). Die Schaltfläche 'KPIs berechnen' wird grün, wenn sowohl Reklamationen als auch Lieferungen erfolgreich hochgeladen wurden.",
+        },
+        howAiAnalyzesData: {
+          q: "Wie analysiert KI Dashboard-Daten?",
+          a: "Die KI-Funktionen (KI-Zusammenfassung und I AM Q) analysieren Ihre tatsächlichen KPI-Daten einschließlich monatlicher Standort-KPIs, globaler PPM-Werte und gefilterter Metriken. Sie identifizieren Trends über die Zeit, vergleichen Standorte (beste vs. schlechteste Leistungsträger), erkennen Anomalien und Spitzen und geben spezifische Empfehlungen mit Werkcodes, Monaten und Werten. Die KI verwendet Qualitätsmanagement-Terminologie und verweist auf Werkstandorte aus den offiziellen Werkstammdaten.",
+        },
+        aiDataContext: {
+          q: "Auf welche Datenkontexte hat KI Zugriff?",
+          a: "KI-Funktionen erhalten Kontext über Ihren aktuellen Dashboard-Zustand: ausgewählte Werke, Datumsbereiche, Benachrichtigungstypen, Reklamationstypen, gefilterte KPIs, monatliche Standortdaten, globale PPM-Werte und Datensatz-Gesundheitsstatus. I AM Q weiß auch, welche Seite Sie ansehen, und kann auf spezifische Diagramme, Metriken und Filter verweisen. Die KI erfindet niemals Daten - sie verweist nur auf das, was tatsächlich in Ihrem Datensatz vorhanden ist.",
         },
       },
     },
@@ -2089,6 +2155,10 @@ const translations: Record<LanguageKey, Translations> = {
           aiSummary: { term: "Riepilogo AI", definition: "Riepilogo narrativo generato da LLM di KPIs filtrati con trend, rischi e azioni raccomandate." },
           aiManagementSummary: { term: "Riepilogo Management AI", definition: "Pagina centrale che riassume KPIs e evidenzia anomalie e azioni (formattazione numeri tedesca, etichette impianti incluse)." },
           providerApiKey: { term: "Provider / Chiave API", definition: "Backend LLM configurato (es. compatibile OpenAI o Anthropic) usato dalla route API Riepilogo AI." },
+          iAmQ: { term: "I AM Q", definition: "Assistente AI integrato nel Dashboard QOS ET che aiuta gli utenti a comprendere le metriche, interpretare i grafici, navigare i filtri e analizzare i dati. Fornisce risposte contestuali basate sullo stato attuale del dashboard e sui dati KPI filtrati." },
+          aiContext: { term: "Contesto AI", definition: "Informazioni sullo stato del dashboard (filtri, siti selezionati, metriche, dati KPI) inviate alle funzionalità AI per fornire risposte contestuali guidate dai dati. Include KPI mensili del sito, PPM globale, stato di salute del dataset e contesto della pagina corrente." },
+          aiDataAnalysis: { term: "Analisi Dati AI", definition: "Analisi guidata da AI dei KPI del dashboard che identifica tendenze, confronta siti, rileva anomalie e fornisce raccomandazioni azionabili. Utilizza dati effettivi da KPI mensili del sito e calcoli PPM globali." },
+          starterPrompts: { term: "Prompt Iniziali", definition: "Domande pre-scritte in I AM Q su cui gli utenti possono cliccare per porre rapidamente domande comuni su tendenze, analisi PPM, raccomandazioni, interpretazione dei grafici o salute dei dati." },
         },
         general: {
           sitePlantCode: { term: "Codice Sito / Impianto", definition: "Codice a 3 cifre che identifica un sito di produzione (es. 145, 235, 410). Mostrato con città/ubicazione quando disponibile." },
@@ -2156,6 +2226,30 @@ const translations: Record<LanguageKey, Translations> = {
         reportIssue: {
           q: "Come segnalo un problema?",
           a: "Usa il pulsante Contatto su questa pagina. Apre un'email con un template che include titolo problema e contesto utile (pagina, timestamp, ultimi caricamenti).",
+        },
+        whatIsIAmQ: {
+          q: "Cos'è I AM Q e come funziona?",
+          a: "I AM Q è un assistente AI integrato nel Dashboard QOS ET. Ti aiuta a comprendere le metriche del dashboard, interpretare i grafici, navigare i filtri e risolvere i problemi. I AM Q ha accesso ai dati attuali del tuo dashboard e può analizzare tendenze, confrontare siti, identificare anomalie e fornire raccomandazioni azionabili basate su dati KPI effettivi. Puoi porre domande in linguaggio naturale e ricevere risposte contestuali specifiche per la tua vista filtrata.",
+        },
+        howToUseIAmQ: {
+          q: "Come uso I AM Q?",
+          a: "Clicca sull'icona chat nella barra superiore per aprire I AM Q. Puoi porre domande su metriche, grafici, caricamenti di dati o richiedere un'analisi dei dati attuali del tuo dashboard. I AM Q include prompt iniziali su cui puoi cliccare per porre rapidamente domande comuni. L'assistente comprende il contesto dai tuoi filtri attuali, siti selezionati e dai dati visualizzati sulla pagina che stai visualizzando.",
+        },
+        uploadFileFormats: {
+          q: "Quali formati di file sono supportati per il caricamento?",
+          a: "La pagina di caricamento supporta file Excel (.xlsx, .xls, .XLSX, .XLS). Ogni sezione (Reclami, Consegne, PPAP, Deviazioni, Impianti) ha requisiti di file specifici. Puoi caricare più file per sezione. Dopo aver caricato i file di reclami e consegne, usa il pulsante 'Calcola KPI' per elaborare i dati e aggiornare il dashboard.",
+        },
+        uploadProgressTracking: {
+          q: "Come funziona il tracciamento del progresso di caricamento?",
+          a: "Ogni sezione di caricamento mostra una barra di progresso che traccia il progresso del caricamento del file (0-100%). Dopo il caricamento riuscito, vedrai un segno di spunta verde e lo stato della sezione cambia in 'successo'. Per il calcolo KPI, una barra di progresso separata mostra il progresso del caricamento (0-50%), l'elaborazione del server (50-75%) e il completamento (75-100%). Il pulsante 'Calcola KPI' diventa verde quando sia i reclami che le consegne sono stati caricati con successo.",
+        },
+        howAiAnalyzesData: {
+          q: "Come analizza l'AI i dati del dashboard?",
+          a: "Le funzionalità AI (Riepilogo AI e I AM Q) analizzano i tuoi dati KPI effettivi inclusi KPI mensili del sito, valori PPM globali e metriche filtrate. Identificano tendenze nel tempo, confrontano siti (migliori vs peggiori performer), rilevano anomalie e picchi e forniscono raccomandazioni specifiche con codici sito, mesi e valori. L'AI utilizza terminologia di Gestione della Qualità e fa riferimento alle ubicazioni degli impianti dai dati master ufficiali degli impianti.",
+        },
+        aiDataContext: {
+          q: "A quale contesto di dati ha accesso l'AI?",
+          a: "Le funzionalità AI ricevono contesto sullo stato attuale del tuo dashboard: impianti selezionati, intervalli di date, tipi di notifica, tipi di reclamo, KPI filtrati, dati mensili del sito, valori PPM globali e stato di salute del dataset. I AM Q sa anche quale pagina stai visualizzando e può fare riferimento a grafici, metriche e filtri specifici. L'AI non inventa mai dati - fa riferimento solo a ciò che è effettivamente nel tuo dataset.",
         },
       },
     },

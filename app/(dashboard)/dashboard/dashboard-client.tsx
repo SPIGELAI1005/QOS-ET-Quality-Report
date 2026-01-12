@@ -447,29 +447,42 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
-  // Load data from localStorage on mount
+  // Load data from localStorage on mount and listen for updates
   useEffect(() => {
+    const loadKpiData = () => {
+      if (typeof window !== 'undefined') {
+        const storedKpis = localStorage.getItem('qos-et-kpis');
+        const storedPpm = localStorage.getItem('qos-et-global-ppm');
+        
+        if (storedKpis) {
+          try {
+            const parsed = JSON.parse(storedKpis);
+            setMonthlySiteKpis(parsed);
+          } catch (e) {
+            console.error('Failed to parse stored KPIs:', e);
+          }
+        }
+        
+        if (storedPpm) {
+          try {
+            const parsed = JSON.parse(storedPpm);
+            setGlobalPpm(parsed);
+          } catch (e) {
+            console.error('Failed to parse stored PPM:', e);
+          }
+        }
+      }
+    };
+
+    // Load on mount
+    loadKpiData();
+
+    // Listen for KPI data updates
     if (typeof window !== 'undefined') {
-      const storedKpis = localStorage.getItem('qos-et-kpis');
-      const storedPpm = localStorage.getItem('qos-et-global-ppm');
-      
-      if (storedKpis) {
-        try {
-          const parsed = JSON.parse(storedKpis);
-          setMonthlySiteKpis(parsed);
-        } catch (e) {
-          console.error('Failed to parse stored KPIs:', e);
-        }
-      }
-      
-      if (storedPpm) {
-        try {
-          const parsed = JSON.parse(storedPpm);
-          setGlobalPpm(parsed);
-        } catch (e) {
-          console.error('Failed to parse stored PPM:', e);
-        }
-      }
+      window.addEventListener('qos-et-kpi-data-updated', loadKpiData);
+      return () => {
+        window.removeEventListener('qos-et-kpi-data-updated', loadKpiData);
+      };
     }
   }, []);
 
@@ -737,6 +750,34 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         setAiSummary(null);
         return;
       }
+
+      // Check if there's meaningful data (non-zero values)
+      const hasMeaningfulData = filteredKpis.some(kpi => 
+        kpi.customerComplaintsQ1 > 0 || 
+        kpi.supplierComplaintsQ2 > 0 || 
+        kpi.internalComplaintsQ3 > 0 || 
+        kpi.deviationsD > 0 || 
+        kpi.ppapP.inProgress > 0 || 
+        kpi.ppapP.completed > 0
+      );
+
+      // Check if selected plants have any data
+      const selectedPlantsWithData = filters.selectedPlants.length > 0
+        ? filters.selectedPlants.filter(site => {
+            const siteKpis = filteredKpis.filter(k => k.siteCode === site);
+            return siteKpis.some(k => 
+              k.customerComplaintsQ1 > 0 || 
+              k.supplierComplaintsQ2 > 0 || 
+              k.internalComplaintsQ3 > 0 || 
+              k.deviationsD > 0 || 
+              k.ppapP.inProgress > 0 || 
+              k.ppapP.completed > 0
+            );
+          })
+        : [];
+
+      // If plants are selected but have no data, still generate summary to inform user
+      // The AI prompt will handle this case and state clearly that no data is available
 
     console.log('[AI Summary] Starting generation with', filteredKpis.length, 'filtered KPIs');
 
@@ -1293,25 +1334,20 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     };
   }, [filteredKpis, previousMonth, calculateTrend, availableSites]);
 
-  // Sparkline data for metric tiles - shows YTD cumulative values by month
-  // This shows the running YTD total as each month progresses
+  // Sparkline data for metric tiles - shows trend over the 12-month lookback period
+  // This shows the monthly values (not cumulative) to display trends over time
   const sparklineData = useMemo(() => {
     if (selectedMonth === null || selectedYear === null) {
       return [];
     }
-    const targetYear = selectedYear;
-    const targetMonth = selectedMonth; // 1-12
 
-    // Filter KPIs for selected year only (YTD up to selected month)
-    const currentYearKpis = filteredKpis.filter((kpi) => {
-      const kpiDate = new Date(kpi.month + "-01");
-      const kpiYear = kpiDate.getFullYear();
-      const kpiMonth = kpiDate.getMonth() + 1;
-      return kpiYear === targetYear && kpiMonth <= targetMonth;
-    });
+    // Use filteredKpis which already respects the 12-month lookback period
+    // This ensures we always have data for the sparkline regardless of selected month
+    const sparklineKpis = filteredKpis;
 
-    // Group by month and calculate cumulative YTD values
-    const byMonth = currentYearKpis.reduce((acc, kpi) => {
+    // Group by month and calculate monthly values (not cumulative)
+    // This shows the trend over the lookback period
+    const byMonth = sparklineKpis.reduce((acc, kpi) => {
       if (!acc[kpi.month]) {
         acc[kpi.month] = {
           customerComplaints: 0,
@@ -1331,49 +1367,33 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       // Use actual delivery quantities from Outbound/Inbound files
       acc[kpi.month].customerDeliveries += kpi.customerDeliveries || 0;
       acc[kpi.month].supplierDeliveries += kpi.supplierDeliveries || 0;
-      acc[kpi.month].customerPpm += kpi.customerPpm || 0;
-      acc[kpi.month].supplierPpm += kpi.supplierPpm || 0;
       return acc;
     }, {} as Record<string, any>);
 
-    // Convert to array and calculate cumulative YTD values
+    // Convert to array and sort by month
     const sortedMonths = Object.entries(byMonth)
       .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime());
 
-    // Calculate cumulative YTD values
-    let cumulativeCustomerComplaints = 0;
-    let cumulativeSupplierComplaints = 0;
-    let cumulativeCustomerDefective = 0;
-    let cumulativeSupplierDefective = 0;
-    let cumulativeCustomerDeliveries = 0;
-    let cumulativeSupplierDeliveries = 0;
-    let cumulativeCustomerPpm = 0;
-    let cumulativeSupplierPpm = 0;
-
+    // Return monthly values (not cumulative) to show trends
+    // Calculate PPM for each month after aggregating all data
     return sortedMonths.map(([month, data]: [string, any]) => {
-      cumulativeCustomerComplaints += data.customerComplaints;
-      cumulativeSupplierComplaints += data.supplierComplaints;
-      cumulativeCustomerDefective += data.customerDefective;
-      cumulativeSupplierDefective += data.supplierDefective;
-      cumulativeCustomerDeliveries += data.customerDeliveries;
-      cumulativeSupplierDeliveries += data.supplierDeliveries;
-      cumulativeCustomerPpm = cumulativeCustomerDeliveries > 0
-        ? (cumulativeCustomerDefective / cumulativeCustomerDeliveries) * 1_000_000
+      const monthCustomerPpm = data.customerDeliveries > 0
+        ? (data.customerDefective / data.customerDeliveries) * 1_000_000
         : 0;
-      cumulativeSupplierPpm = cumulativeSupplierDeliveries > 0
-        ? (cumulativeSupplierDefective / cumulativeSupplierDeliveries) * 1_000_000
+      const monthSupplierPpm = data.supplierDeliveries > 0
+        ? (data.supplierDefective / data.supplierDeliveries) * 1_000_000
         : 0;
-
+      
       return {
         month: new Date(month).toLocaleDateString('en-US', { month: 'short' }),
-        customerComplaints: cumulativeCustomerComplaints,
-        supplierComplaints: cumulativeSupplierComplaints,
-        customerDefective: cumulativeCustomerDefective,
-        supplierDefective: cumulativeSupplierDefective,
-        customerDeliveries: cumulativeCustomerDeliveries,
-        supplierDeliveries: cumulativeSupplierDeliveries,
-        customerPpm: cumulativeCustomerPpm,
-        supplierPpm: cumulativeSupplierPpm,
+        customerComplaints: data.customerComplaints,
+        supplierComplaints: data.supplierComplaints,
+        customerDefective: data.customerDefective,
+        supplierDefective: data.supplierDefective,
+        customerDeliveries: data.customerDeliveries,
+        supplierDeliveries: data.supplierDeliveries,
+        customerPpm: monthCustomerPpm,
+        supplierPpm: monthSupplierPpm,
       };
     });
   }, [filteredKpis, selectedMonth, selectedYear]);
@@ -2583,7 +2603,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           )}
           
           {/* Sparkline Chart */}
-          {sparklineDataKey && sparklineData.length > 1 && (
+          {sparklineDataKey && sparklineData.length > 0 && (
             <div className="h-12 mb-3">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={sparklineData.slice(-6)}>

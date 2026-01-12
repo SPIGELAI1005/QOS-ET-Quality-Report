@@ -1,6 +1,6 @@
 # Recovery Guide - QOS ET Quality Report
 
-**Last Updated**: 2026-01-11
+**Last Updated**: 2026-01-12
 
 This guide provides step-by-step instructions to recover and rebuild the QOS ET Quality Report application if data is lost due to crashes, corruption, or accidental deletion.
 
@@ -229,8 +229,19 @@ npm run lint
 
 3. **LocalStorage Data**:
    - Data is stored in browser localStorage
-   - Keys: `qos-et-kpis`, `qos-et-global-ppm`
+   - Keys: 
+     - `qos-et-kpis`: Monthly site KPIs
+     - `qos-et-global-ppm`: Global PPM values
+     - `qos-et-upload-history`: Upload history entries
+     - `qos-et-upload-summary-{uploadId}`: Upload summary entries (one per upload)
+     - `qos-et-change-history-{uploadId}`: Change history entries (one per upload)
+     - `qos-et-manual-kpis`: Manual KPI entries
+     - `qos-et-upload-kpis-result`: Latest KPI calculation result
+     - `qos-et-role`: User role (reader/editor)
+     - `qos-et-language`: Selected language (en/de/it)
+     - `qos-et-sidebar-collapsed`: Sidebar state
    - May need to re-upload files to regenerate
+   - Upload summaries and change history are created automatically on upload
 
 ---
 
@@ -368,6 +379,6 @@ git push origin main
 
 ---
 
-**Last Updated**: 2026-01-11  
-**Version**: 1.0.0
+**Last Updated**: 2026-01-12  
+**Version**: 1.0.1
 

@@ -125,6 +125,30 @@ export function GlossaryClient() {
         q: t.glossary.faqs.reportIssue.q,
         a: t.glossary.faqs.reportIssue.a,
       },
+      {
+        q: t.glossary.faqs.whatIsIAmQ.q,
+        a: t.glossary.faqs.whatIsIAmQ.a,
+      },
+      {
+        q: t.glossary.faqs.howToUseIAmQ.q,
+        a: t.glossary.faqs.howToUseIAmQ.a,
+      },
+      {
+        q: t.glossary.faqs.uploadFileFormats.q,
+        a: t.glossary.faqs.uploadFileFormats.a,
+      },
+      {
+        q: t.glossary.faqs.uploadProgressTracking.q,
+        a: t.glossary.faqs.uploadProgressTracking.a,
+      },
+      {
+        q: t.glossary.faqs.howAiAnalyzesData.q,
+        a: t.glossary.faqs.howAiAnalyzesData.a,
+      },
+      {
+        q: t.glossary.faqs.aiDataContext.q,
+        a: t.glossary.faqs.aiDataContext.a,
+      },
     ],
     [t]
   );
@@ -177,6 +201,10 @@ export function GlossaryClient() {
       { category: t.glossary.categories.ai, categoryKey: "AI", term: t.glossary.termsList.ai.aiSummary.term, definition: t.glossary.termsList.ai.aiSummary.definition },
       { category: t.glossary.categories.ai, categoryKey: "AI", term: t.glossary.termsList.ai.aiManagementSummary.term, definition: t.glossary.termsList.ai.aiManagementSummary.definition },
       { category: t.glossary.categories.ai, categoryKey: "AI", term: t.glossary.termsList.ai.providerApiKey.term, definition: t.glossary.termsList.ai.providerApiKey.definition },
+      { category: t.glossary.categories.ai, categoryKey: "AI", term: t.glossary.termsList.ai.iAmQ.term, definition: t.glossary.termsList.ai.iAmQ.definition },
+      { category: t.glossary.categories.ai, categoryKey: "AI", term: t.glossary.termsList.ai.aiContext.term, definition: t.glossary.termsList.ai.aiContext.definition },
+      { category: t.glossary.categories.ai, categoryKey: "AI", term: t.glossary.termsList.ai.aiDataAnalysis.term, definition: t.glossary.termsList.ai.aiDataAnalysis.definition },
+      { category: t.glossary.categories.ai, categoryKey: "AI", term: t.glossary.termsList.ai.starterPrompts.term, definition: t.glossary.termsList.ai.starterPrompts.definition },
 
       { category: t.glossary.categories.general, categoryKey: "General", term: t.glossary.termsList.general.sitePlantCode.term, definition: t.glossary.termsList.general.sitePlantCode.definition },
       { category: t.glossary.categories.general, categoryKey: "General", term: t.glossary.termsList.general.uploadHistory.term, definition: t.glossary.termsList.general.uploadHistory.definition },
@@ -359,7 +387,7 @@ export function GlossaryClient() {
               </p>
               <div className="flex items-center gap-2 flex-wrap pt-2">
                 <Badge variant="secondary" className="bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/30">
-                  {t.glossary.faqsCount}
+                  {faqs.length} FAQ
                 </Badge>
                 <Badge variant="secondary" className="bg-muted/50">
                   {t.glossary.fullGlossary}

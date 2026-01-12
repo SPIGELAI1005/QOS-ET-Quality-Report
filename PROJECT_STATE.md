@@ -1,7 +1,7 @@
 # QOS ET Quality Report - Complete Project State Documentation
 
-**Last Updated**: 2026-01-11  
-**Version**: 1.0.3  
+**Last Updated**: 2026-01-12  
+**Version**: 1.0.4  
 **Status**: Active Development
 
 This document provides a complete snapshot of the application state, including all pages, components, features, charts, tables, and functionality. Use this document to rebuild the application if data is lost.
@@ -97,9 +97,12 @@ QOS ET Report/
 │   ├── ai/                      # AI/LLM client
 │   ├── config/                  # Configuration files
 │   ├── data/                    # Data files
+│   │   ├── uploadSummary.ts     # Upload summary and change history types
+│   │   └── correctedData.ts     # Corrected data utilities
 │   ├── domain/                  # Domain models & business logic
 │   ├── excel/                   # Excel parsing utilities
 │   └── utils/                   # Utility functions
+│       └── unitConversion.ts    # Client-side unit conversion
 ├── public/                      # Static assets
 ├── scripts/                     # Utility scripts
 ├── .gitignore                   # Git ignore rules
@@ -248,21 +251,39 @@ QOS ET Report/
 
 ### 11. Upload & Report (`/upload`)
 - **Files**: `app/(dashboard)/upload/page.tsx`
-- **Description**: File upload and KPI calculation page
+- **Description**: File upload, KPI calculation, and data review page
 - **Features**:
-  - File upload form (complaints, deliveries, other data)
-  - "Process All Files from Attachments" button
-  - Progress indicator
-  - Global PPM summary
-  - Filters (months, sites)
-  - Charts (complaints per month, PPM per month)
-  - AI insights panel
-  - KPI table
+  - File upload form (complaints, deliveries, PPAP, deviations, audit, plants)
+  - Progress indicators for each upload section
+  - "Calculate KPIs" button (turns green when ready)
+  - KPI calculation progress bar
+  - Manual data entry form
+  - **Upload Summary Table** (new tab):
+    - Displays all imported complaints in table format
+    - Shows conversion status (Converted, Failed, Needs Attention, Not Applicable)
+    - Highlights rows with conversion issues
+    - Editor-only inline editing capabilities
+    - Real-time unit conversion
+    - Manual override for converted values
+  - **Change History** (new tab):
+    - Filterable change history display
+    - Shows all manual corrections and conversions
+    - Tracks affected metrics, visualizations, pages, and calculations
+    - Export to Excel functionality
+  - Upload history tracking
+  - Export functionality
+- **Tabs**:
+  - Upload Files: File upload interface
+  - Enter Data: Manual KPI entry form
+  - Upload Summary: Review and correct imported data (new)
+  - Change History: View all changes with impact analysis (new)
 - **Charts**: 
   - ComplaintsPerMonthChart
   - PpmPerMonthChart
 - **Tables**: 
   - Monthly Site KPIs table
+  - Upload Summary Table (complaints with conversion status)
+  - Change History Table (filterable)
 
 ### 12. Data Lineage (`/data-lineage`)
 - **Files**:
@@ -422,6 +443,7 @@ All UI components from Shadcn UI:
 - Select
 - Table
 - Tabs
+- Textarea (new)
 - Tooltip
 
 ---
@@ -476,11 +498,21 @@ All UI components from Shadcn UI:
    - Columns: Month, Site Code, Site Name, Q1, Q2, Q3, Total
    - Used in: Complaints page
 
+3. **Upload Summary Table**:
+   - Columns: Status, Notification #, Type, Site, Date, Original Value, Unit, Converted Value, Material Description, Actions
+   - Used in: Upload page (Upload Summary tab)
+   - Features: Row highlighting for issues, inline editing, conversion status badges
+
+4. **Change History Table**:
+   - Columns: Timestamp, Editor, Record ID, Record Type, Field, Old Value, New Value, Reason, Affected Metrics/Visualizations
+   - Used in: Upload page (Change History tab)
+   - Features: Filterable, exportable to Excel, impact analysis
+
 3. **Deviations Table**:
    - Columns: Month, Site Code, Site Name, Deviations
    - Used in: Deviations page
 
-4. **PPAPs Table**:
+6. **PPAPs Table**:
    - Columns: Month, Site Code, Site Name, In Progress, Completed, Total
    - Used in: PPAPs page
 
@@ -637,6 +669,27 @@ All UI components from Shadcn UI:
 
 ## Data Models & Types
 
+### Upload Summary Types (`lib/data/uploadSummary.ts`)
+
+#### UploadSummaryEntry
+- Stores raw and processed data for each upload
+- Tracks conversion status for each record
+- Links to upload history entries
+- Contains change history
+
+#### ChangeHistoryEntry
+- Tracks all manual corrections and conversions
+- Records field changes (old value → new value)
+- Includes affected metrics, visualizations, pages, and calculations
+- Optional reason field for changes
+- Timestamp and editor identifier
+
+#### AffectedMetrics
+- Lists metrics affected by changes (e.g., "Customer Complaints", "Supplier PPM")
+- Lists visualizations affected (e.g., "Dashboard Metric Tiles", "Customer Performance Charts")
+- Lists pages affected (e.g., "/dashboard", "/complaints", "/ppm")
+- Lists calculations affected (e.g., "Customer PPM = (Defective / Deliveries) * 1M")
+
 ### Core Types (`lib/domain/types.ts`)
 
 #### MonthlySiteKpi
@@ -762,6 +815,14 @@ interface DeliveryColumnMapping {
 3. **Data Storage**:
    - localStorage for KPIs (`qos-et-kpis`)
    - localStorage for global PPM (`qos-et-global-ppm`)
+   - localStorage for upload history (`qos-et-upload-history`)
+   - localStorage for upload summaries (`qos-et-upload-summary-{uploadId}`)
+   - localStorage for change history (`qos-et-change-history-{uploadId}`)
+   - localStorage for manual KPIs (`qos-et-manual-kpis`)
+   - localStorage for upload KPI results (`qos-et-upload-kpis-result`)
+   - localStorage for user role (`qos-et-role`)
+   - localStorage for language preference (`qos-et-language`)
+   - localStorage for sidebar state (`qos-et-sidebar-collapsed`)
 
 ### Filtering & Search
 - Plant/site filtering
@@ -779,17 +840,27 @@ interface DeliveryColumnMapping {
   - Native system message support for Anthropic
 - I AM Q AI Assistant (`/api/iamq`)
   - Context-aware responses using dashboard state
+  - **Uses Filtered Data**: Only analyzes data from selected plants, date ranges, notification types
+  - **Data Validation**: Validates for empty data and reports honestly
+  - **Professional Management Style**: Structured format with Executive Summary, Key Trends, Risk Assessment, Recommendations, Action Items
   - **Dashboard Data Analysis**: Analyzes actual KPI data (monthlySiteKpis) for deep insights
     - Trend analysis, site comparison, anomaly detection
     - Provides actionable recommendations based on actual metrics
     - References specific sites, months, and values
   - **Starter Prompts**: 15 clickable questions with expandable UI (10 shown initially)
+    - "Starter prompts" button to show prompts again
   - Knowledge base integration from FAQ/Glossary
   - Dataset health awareness
   - Rate limiting (20 requests per 10 minutes)
   - Input validation (max 2000 characters)
   - Question classification (chart_explainer mode)
   - Streaming token-by-token responses
+- AI Summary (`/api/ai/interpret-kpis`)
+  - **Uses Filtered Data**: Only analyzes data from selected plants, date ranges, notification types
+  - **Data Validation**: Checks for meaningful data (non-zero values) before generating
+  - **Empty Data Handling**: Clearly states when no data is available for selected plants/period
+  - **No Data Invention**: Does not invent data or reference plants not in filtered context
+  - **Professional Format**: Management-ready summaries with trends, risks, and recommendations
 - AI insights generation
 - Trend analysis
 - Anomaly detection
@@ -799,6 +870,18 @@ interface DeliveryColumnMapping {
 - Single file upload
 - Multiple file upload
 - "Process All Files" from attachments folder
+- **Upload Summary Table**: Review and correct imported data
+  - Displays all imported complaints with conversion status
+  - Highlights rows with conversion issues
+  - Editor-only inline editing capabilities
+  - Real-time unit conversion
+  - Manual override for converted values
+- **Change History Tracking**: Full audit trail of all corrections
+  - Tracks field changes (old value → new value)
+  - Records affected metrics, visualizations, pages, and calculations
+  - Optional reason field for changes
+  - Timestamp and editor identifier
+  - Filterable and exportable to Excel
 - Progress indicators
 - Error handling
 - File type validation

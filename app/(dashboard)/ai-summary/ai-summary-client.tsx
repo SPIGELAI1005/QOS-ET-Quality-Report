@@ -67,29 +67,41 @@ export function AISummaryClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       return;
     }
 
-    if (typeof window === "undefined") return;
-    const storedKpis = localStorage.getItem("qos-et-kpis");
-    const storedPpm = localStorage.getItem("qos-et-global-ppm");
+    const loadKpiData = () => {
+      if (typeof window === "undefined") return;
+      const storedKpis = localStorage.getItem("qos-et-kpis");
+      const storedPpm = localStorage.getItem("qos-et-global-ppm");
 
-    if (storedKpis) {
-      try {
-        const parsed = JSON.parse(storedKpis);
-        setMonthlySiteKpis(parsed);
-      } catch (e) {
-        console.error("Failed to parse stored KPIs:", e);
+      if (storedKpis) {
+        try {
+          const parsed = JSON.parse(storedKpis);
+          setMonthlySiteKpis(parsed);
+        } catch (e) {
+          console.error("Failed to parse stored KPIs:", e);
+        }
       }
-    }
 
-    if (storedPpm) {
-      try {
-        const parsed = JSON.parse(storedPpm);
-        setGlobalPpm(parsed);
-      } catch (e) {
-        console.error("Failed to parse stored PPM:", e);
+      if (storedPpm) {
+        try {
+          const parsed = JSON.parse(storedPpm);
+          setGlobalPpm(parsed);
+        } catch (e) {
+          console.error("Failed to parse stored PPM:", e);
+        }
       }
-    }
 
-    setLoading(false);
+      setLoading(false);
+    };
+
+    loadKpiData();
+    
+    // Listen for KPI data updates
+    if (typeof window !== "undefined") {
+      window.addEventListener("qos-et-kpi-data-updated", loadKpiData);
+      return () => {
+        window.removeEventListener("qos-et-kpi-data-updated", loadKpiData);
+      };
+    }
   }, [propsKpis.length]);
 
   // Filter KPIs using the same logic as dashboard

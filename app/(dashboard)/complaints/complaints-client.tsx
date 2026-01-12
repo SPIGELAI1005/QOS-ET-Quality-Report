@@ -38,16 +38,28 @@ export function ComplaintsClient() {
   });
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedKpis = localStorage.getItem('qos-et-kpis');
-      if (storedKpis) {
-        try {
-          const parsed = JSON.parse(storedKpis);
-          setMonthlySiteKpis(parsed);
-        } catch (e) {
-          console.error('Failed to parse stored KPIs:', e);
+    const loadKpiData = () => {
+      if (typeof window !== 'undefined') {
+        const storedKpis = localStorage.getItem('qos-et-kpis');
+        if (storedKpis) {
+          try {
+            const parsed = JSON.parse(storedKpis);
+            setMonthlySiteKpis(parsed);
+          } catch (e) {
+            console.error('Failed to parse stored KPIs:', e);
+          }
         }
       }
+    };
+
+    loadKpiData();
+    
+    // Listen for KPI data updates
+    if (typeof window !== 'undefined') {
+      window.addEventListener('qos-et-kpi-data-updated', loadKpiData);
+      return () => {
+        window.removeEventListener('qos-et-kpi-data-updated', loadKpiData);
+      };
     }
   }, []);
 

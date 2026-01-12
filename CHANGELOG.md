@@ -7,6 +7,154 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2026-01-12
+**Type**: Added
+
+**Description**: Upload Summary Table with Editor Capabilities and Change History Tracking
+
+**Details**:
+- **Upload Summary Table**: New tab on upload page showing all imported data in table format
+  - Displays all complaints with conversion status (Converted, Failed, Needs Attention, Not Applicable)
+  - Highlights rows with conversion issues (yellow/orange background)
+  - Shows original values, units, converted values, and material descriptions
+  - Editor-only inline editing capabilities
+  - Real-time unit conversion using client-side logic
+  - Manual override for converted values
+- **Change History Tracking**: Comprehensive change tracking system
+  - Tracks all manual corrections and conversions
+  - Records field changes (old value → new value)
+  - Tracks affected metrics (Customer Complaints, Supplier PPM, etc.)
+  - Tracks affected visualizations (Dashboard tiles, charts, etc.)
+  - Tracks affected pages (/dashboard, /complaints, /ppm, etc.)
+  - Tracks affected calculations (PPM formulas, YTD calculations, etc.)
+  - Optional reason field for changes
+  - Timestamp and editor identifier
+  - Change type classification (conversion, manual_edit, correction, bulk_action)
+- **Change History Panel**: Filterable change history display
+  - Filter by record type, change type, record ID, editor
+  - Export to Excel functionality
+  - Shows impact analysis for each change
+  - Displays affected metrics, visualizations, pages, and calculations
+- **Data Storage**: Extended upload history with summary data
+  - Stores raw imported data
+  - Stores processed data (after editor corrections)
+  - Stores conversion status for each record
+  - Links summaries to upload history entries
+  - Persists to localStorage with change history
+
+**Files Modified**:
+- `app/(dashboard)/upload/page.tsx` - Added Upload Summary tab, integrated summary table and change history
+- `lib/data/uploadSummary.ts` - New file with upload summary types and utilities
+- `lib/data/correctedData.ts` - New file with utilities for applying corrections
+- `lib/utils/unitConversion.ts` - New file with client-side unit conversion logic
+- `components/upload/upload-summary-table.tsx` - New component for displaying upload summary
+- `components/upload/complaint-row-editor.tsx` - New component for inline editing
+- `components/upload/change-history-panel.tsx` - New component for change history display
+- `components/ui/textarea.tsx` - New UI component for text areas
+
+**Components Affected**:
+- Upload Page - New "Upload Summary" tab with table and change history
+- Upload Summary Table - Displays imported data with conversion status
+- Complaint Row Editor - Inline editing with real-time conversion
+- Change History Panel - Filterable change history with impact analysis
+
+**Features Added/Modified**:
+- Upload summary table - Review and correct imported data
+- Change history tracking - Full audit trail of all corrections
+- Impact analysis - Shows which metrics/visualizations are affected by changes
+- Editor capabilities - Only editors can make corrections
+- Unit conversion editor - Real-time conversion with manual override
+
+**Breaking Changes**: None
+
+**Migration Notes**:
+- Existing uploads will not have summaries until new uploads are made
+- Change history starts from the date of implementation
+- No migration required for existing data
+
+---
+
+### Fixed - 2026-01-12
+**Type**: Fixed
+
+**Description**: AI Summary and I AM Q now use filtered data and handle empty data cases
+
+**Details**:
+- **AI Summary Data Validation**: AI Summary now validates filtered data before generating
+  - Checks for meaningful data (non-zero values) before generating summaries
+  - Validates selected plants have data
+  - Clearly states when no data is available for selected plants/period
+  - Does not invent data or reference plants not in filtered context
+  - Uses only filtered data (selected plants, date ranges, notification types)
+- **I AM Q Data Context**: I AM Q now uses filtered data and presents in professional management style
+  - Uses filtered KPIs from dashboard context
+  - Validates for empty data and reports honestly
+  - Presents analysis in professional management style with structured format:
+    - Executive Summary
+    - Key Trends & Performance
+    - Risk Assessment & Anomalies
+    - Management Recommendations
+    - Action Items
+  - References only filtered data (selected plants, date ranges, etc.)
+- **AI Management Summary**: Already uses filtered data correctly, now validates for empty data
+- **Professional Presentation**: All AI features present information in management-ready format
+
+**Files Modified**:
+- `app/api/ai/interpret-kpis/route.ts` - Added data validation and empty data handling
+- `lib/iamq/systemPrompt.ts` - Updated to use filtered data and professional management style
+- `app/(dashboard)/dashboard/dashboard-client.tsx` - Added data validation before AI Summary generation
+
+**Components Affected**:
+- AI Summary (Dashboard) - Now validates data and handles empty cases
+- AI Management Summary - Validates for empty data
+- I AM Q - Uses filtered data and professional presentation
+
+**Features Added/Modified**:
+- Data validation - AI features check for meaningful data before generating
+- Empty data handling - Clear messages when no data is available
+- Professional presentation - Management-ready format for all AI outputs
+- Filtered data usage - All AI features use only filtered/selected data
+
+**Breaking Changes**: None
+
+**Migration Notes**: None
+
+---
+
+### Improved - 2026-01-12
+**Type**: Improved
+
+**Description**: Home page optimized for light mode with theme-aware styling
+
+**Details**:
+- **Theme Detection**: Added theme detection using `useTheme` hook
+- **Information Tiles**: Optimized for both light and dark modes
+  - Light mode: Higher opacity backgrounds (90% instead of 35%) for better visibility on white
+  - Light mode: Darker green color (#00AA00 instead of #00FF00) for better contrast
+  - Light mode: Stronger borders and shadows for definition
+  - Dark mode: Keeps original bright green styling
+- **Title Text**: Adapts color based on theme (darker green in light mode)
+- **Generate Button**: More opaque background in light mode for better visibility
+- **Footer**: Theme-aware colors
+- **Dark Overlay**: Only shows in dark mode (removed in light mode for cleaner look)
+
+**Files Modified**:
+- `app/page.tsx` - Added theme detection and conditional styling for light/dark modes
+
+**Components Affected**:
+- Home Page - Information tiles now look great in both light and dark modes
+
+**Features Added/Modified**:
+- Light mode optimization - Better contrast and visibility on white backgrounds
+- Theme-aware styling - All elements adapt to current theme
+- Improved readability - Text and borders are clearly visible in both modes
+
+**Breaking Changes**: None
+
+**Migration Notes**: None
+
+---
+
 ### Added - 2026-01-11
 **Type**: Added
 

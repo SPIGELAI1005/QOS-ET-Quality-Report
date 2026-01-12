@@ -1,0 +1,250 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, CheckCircle2, Edit, X, Save, AlertCircle } from "lucide-react";
+import type { Complaint } from "@/lib/domain/types";
+import type { UploadSummaryEntry, ChangeHistoryEntry } from "@/lib/data/uploadSummary";
+import { ComplaintRowEditor } from "./complaint-row-editor";
+import { cn } from "@/lib/utils";
+
+interface UploadSummaryTableProps {
+  summary: UploadSummaryEntry;
+  onSave: (summary: UploadSummaryEntry, changes: ChangeHistoryEntry[]) => void;
+  editorRole: boolean;
+}
+
+export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummaryTableProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editedComplaints, setEditedComplaints] = useState<Map<string, Complaint>>(new Map());
+  const [pendingChanges, setPendingChanges] = useState<ChangeHistoryEntry[]>([]);
+
+  const complaints = useMemo(() => {
+    // Use edited complaints if available, otherwise use processed data, fallback to raw
+    const base = summary.processedData.complaints || summary.rawData.complaints || [];
+    const edited = Array.from(editedComplaints.values());
+    const editedIds = new Set(edited.map(c => c.id));
+    const unchanged = base.filter(c => !editedIds.has(c.id));
+    return [...unchanged, ...edited];
+  }, [summary, editedComplaints]);
+
+  const conversionStatus = summary.conversionStatus.complaints || [];
+
+  const handleEdit = (complaint: Complaint) => {
+    setEditingId(complaint.id);
+  };
+
+  const handleSaveEdit = (complaint: Complaint, change: ChangeHistoryEntry) => {
+    setEditedComplaints(prev => {
+      const next = new Map(prev);
+      next.set(complaint.id, complaint);
+      return next;
+    });
+    setPendingChanges(prev => [...prev, change]);
+    setEditingId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleSaveAll = () => {
+    const updatedSummary: UploadSummaryEntry = {
+      ...summary,
+      processedData: {
+        ...summary.processedData,
+        complaints: complaints,
+      },
+      changeHistory: [...summary.changeHistory, ...pendingChanges],
+      summary: {
+        ...summary.summary,
+        recordsCorrected: summary.summary.recordsCorrected + pendingChanges.length,
+        recordsUnchanged: summary.summary.totalRecords - (summary.summary.recordsCorrected + pendingChanges.length),
+      },
+    };
+    onSave(updatedSummary, pendingChanges);
+    setPendingChanges([]);
+    setEditedComplaints(new Map());
+  };
+
+  const getStatusBadge = (complaint: Complaint) => {
+    const status = conversionStatus.find(s => s.complaintId === complaint.id);
+    if (!status) {
+      return <Badge variant="secondary">N/A</Badge>;
+    }
+
+    switch (status.status) {
+      case "converted":
+        return (
+          <Badge variant="default" className="bg-green-600">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Converted
+          </Badge>
+        );
+      case "failed":
+        return (
+          <Badge variant="destructive">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            Failed
+          </Badge>
+        );
+      case "needs_attention":
+        return (
+          <Badge variant="outline" className="border-amber-500 text-amber-600">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Needs Attention
+          </Badge>
+        );
+      default:
+        return <Badge variant="secondary">Not Applicable</Badge>;
+    }
+  };
+
+  const hasIssues = (complaint: Complaint) => {
+    const status = conversionStatus.find(s => s.complaintId === complaint.id);
+    return status?.status === "failed" || status?.status === "needs_attention";
+  };
+
+  if (complaints.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        No complaints data available for this upload.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {pendingChanges.length > 0 && editorRole && (
+        <div className="flex items-center justify-between p-3 bg-muted/50 border border-border rounded-md">
+          <div className="text-sm text-muted-foreground">
+            {pendingChanges.length} change{pendingChanges.length !== 1 ? "s" : ""} pending
+          </div>
+          <Button onClick={handleSaveAll} size="sm" className="bg-[#00FF88] hover:bg-[#00FF88]/90 text-black">
+            <Save className="h-4 w-4 mr-2" />
+            Save All Changes
+          </Button>
+        </div>
+      )}
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[80px]">Status</TableHead>
+              <TableHead>Notification #</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Site</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Original Value</TableHead>
+              <TableHead>Unit</TableHead>
+              <TableHead className="text-right">Converted Value</TableHead>
+              <TableHead>Material Description</TableHead>
+              {editorRole && <TableHead className="w-[100px]">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {complaints.map((complaint) => {
+              const status = conversionStatus.find(s => s.complaintId === complaint.id);
+              const isEditing = editingId === complaint.id;
+              const hasIssue = hasIssues(complaint);
+
+              if (isEditing) {
+                return (
+                  <TableRow key={complaint.id}>
+                    <TableCell colSpan={editorRole ? 10 : 9}>
+                      <ComplaintRowEditor
+                        complaint={complaint}
+                        status={status}
+                        onSave={(c, change) => handleSaveEdit(c, change)}
+                        onCancel={handleCancelEdit}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              }
+
+              return (
+                <TableRow
+                  key={complaint.id}
+                  className={cn(
+                    hasIssue && "bg-amber-50/50 dark:bg-amber-950/20 border-l-4 border-l-amber-500"
+                  )}
+                >
+                  <TableCell>{getStatusBadge(complaint)}</TableCell>
+                  <TableCell className="font-mono text-sm">{complaint.notificationNumber}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{complaint.notificationType}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{complaint.siteCode}</div>
+                    {complaint.siteName && (
+                      <div className="text-xs text-muted-foreground">{complaint.siteName}</div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {new Date(complaint.createdOn).toLocaleDateString("de-DE")}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {status?.originalValue.toLocaleString("de-DE") || complaint.defectiveParts.toLocaleString("de-DE")}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{complaint.unitOfMeasure || "PC"}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {status?.convertedValue !== undefined
+                      ? status.convertedValue.toLocaleString("de-DE", { maximumFractionDigits: 2 })
+                      : complaint.defectiveParts.toLocaleString("de-DE")}
+                  </TableCell>
+                  <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                    {complaint.materialDescription || "-"}
+                  </TableCell>
+                  {editorRole && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(complaint)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {complaints.length > 0 && (
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div>
+            Total records: {complaints.length} | Records with issues:{" "}
+            {conversionStatus.filter(s => s.status === "failed" || s.status === "needs_attention").length} | 
+            Records corrected: {summary.summary.recordsCorrected}
+          </div>
+          {hasIssues(complaints[0]) && (
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4" />
+              <span>
+                Rows highlighted in yellow/orange have conversion issues and may need manual correction.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+

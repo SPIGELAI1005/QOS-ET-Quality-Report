@@ -143,6 +143,36 @@ function buildAnalysisPrompt(
     0
   );
 
+  // Check if there's meaningful data (non-zero values)
+  const hasMeaningfulData = totalQ1 > 0 || totalQ2 > 0 || totalQ3 > 0 || totalDeviations > 0 || totalPPAP > 0;
+  
+  // Check if selected plants have any data
+  const selectedPlantsWithData = selectedSites && selectedSites.length > 0
+    ? selectedSites.filter(site => {
+        const siteKpis = sortedKpis.filter(k => k.siteCode === site);
+        return siteKpis.some(k => 
+          k.customerComplaintsQ1 > 0 || 
+          k.supplierComplaintsQ2 > 0 || 
+          k.internalComplaintsQ3 > 0 || 
+          k.deviationsD > 0 || 
+          k.ppapP.inProgress > 0 || 
+          k.ppapP.completed > 0
+        );
+      })
+    : sites.filter(site => {
+        const siteKpis = sortedKpis.filter(k => k.siteCode === site);
+        return siteKpis.some(k => 
+          k.customerComplaintsQ1 > 0 || 
+          k.supplierComplaintsQ2 > 0 || 
+          k.internalComplaintsQ3 > 0 || 
+          k.deviationsD > 0 || 
+          k.ppapP.inProgress > 0 || 
+          k.ppapP.completed > 0
+        );
+      });
+  
+  const hasNoDataForSelectedPlants = selectedSites && selectedSites.length > 0 && selectedPlantsWithData.length === 0;
+
   // Calculate PPM statistics
   const customerPpms = sortedKpis
     .map((k) => k.customerPpm)
@@ -229,18 +259,14 @@ Tone and style:
 Output format:
 CRITICAL: You MUST return ONLY valid JSON. Do not include any markdown formatting, code blocks, or explanatory text before or after the JSON. Return ONLY the JSON object.
 
+${hasNoDataForSelectedPlants || !hasMeaningfulData ? 'CRITICAL DATA VALIDATION: There is NO meaningful data available for the selected plants and time period. You MUST state this clearly and honestly. Do NOT invent data, reference other plants, or create generic analysis. Your summary should clearly indicate that no data is available.' : ''}
+
 Return your answer as structured JSON with these sections:
 {
-  "summary": "EXACTLY 2-3 short statements, each on a separate line. Each statement must be approximately 15 words maximum. Each statement must start with a word (not a number or bullet point). Each statement should be a complete, clear sentence that is immediately understandable. Focus on the most significant trends, critical changes, or key insights that directly relate to the metrics displayed on the dashboard. MUST reflect the filtered data context (e.g., if specific plants are selected, mention those plants; if a date range is filtered, reference that period). ALWAYS specify 'Customer PPM' or 'Supplier PPM' when mentioning PPM values. CRITICAL: ALWAYS include the city/location when mentioning a plant number (e.g., 'Site 145 (Vienna)' or 'Plant 235 in Kampen'). Format as plain text, one statement per line, no bullets, no numbers, no prefixes. Example format:\nSite 145 (Vienna) experienced significant Customer PPM spikes in June requiring immediate attention.\nSupplier complaints increased at Site 235 (Kampen) during the selected period.\nOverall quality metrics show improvement trends across most monitored sites.",
-  "trendsAndSiteComparison": "MUST identify and describe: (1) Top 2-3 performing sites with their PPM values (lowest PPM = best performance), mention specific site numbers with their city/location and PPM values like 'Site 175 (Vienna) with Customer PPM of 20.05' or 'Site 235 (Kampen) has Supplier PPM of 23.09'. ALWAYS specify whether it's Customer PPM or Supplier PPM. ALWAYS include the city/location when mentioning a plant number. (2) Sites with improving trends. (3) Overall trends over time. Be specific with site numbers, cities, and values. NEVER use just 'PPM' - always use 'Customer PPM' or 'Supplier PPM'. Keep descriptions concise and clear (1-2 sentences per site).",
-  "keyRisksAndAnomalies": "MUST identify and describe: (1) Top 2-3 sites needing attention with their PPM values or complaint counts (highest PPM or most complaints = needs attention), mention specific site numbers with their city/location like 'Site 411 (Vienna) with Supplier PPM of 1102.87' or 'Site 410 (Kampen) has 358 complaints'. ALWAYS specify whether it's Customer PPM or Supplier PPM when mentioning PPM. ALWAYS include the city/location when mentioning a plant number. (2) Anomalies and spikes with specific months and sites. (3) Critical issues requiring immediate action. Be specific with site numbers, cities, values, and dates. NEVER use just 'PPM' - always use 'Customer PPM' or 'Supplier PPM'. Keep descriptions concise and clear (1-2 sentences per item).",
-  "recommendedActions": [
-    "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation of what needs to be done and why. Be specific with site numbers, dates, and processes. Should be 2-3 clear, understandable sentences. Avoid jargon.]. Expected Impact: [Specific, concise outcome expected - 1 sentence maximum]",
-    "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]",
-    "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]",
-    "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]",
-    "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]"
-  ],
+  "summary": "${hasNoDataForSelectedPlants || !hasMeaningfulData ? 'EXACTLY 2-3 short statements stating clearly that no data is available. Example: "No quality data is available for the selected plants and time period." "Please verify plant selection or upload data for these plants." "The dashboard metrics reflect zero values due to missing data." Each statement must be approximately 15 words maximum, start with a word (not a number or bullet point), and be a complete, clear sentence. Format as plain text, one statement per line, no bullets, no numbers, no prefixes.' : 'EXACTLY 2-3 short statements, each on a separate line. Each statement must be approximately 15 words maximum. Each statement must start with a word (not a number or bullet point). Each statement should be a complete, clear sentence that is immediately understandable. Focus on the most significant trends, critical changes, or key insights that directly relate to the metrics displayed on the dashboard. MUST reflect the filtered data context (e.g., if specific plants are selected, mention those plants; if a date range is filtered, reference that period). ALWAYS specify \'Customer PPM\' or \'Supplier PPM\' when mentioning PPM values. CRITICAL: ALWAYS include the city/location when mentioning a plant number (e.g., \'Site 145 (Vienna)\' or \'Plant 235 in Kampen\'). Format as plain text, one statement per line, no bullets, no numbers, no prefixes. Example format:\nSite 145 (Vienna) experienced significant Customer PPM spikes in June requiring immediate attention.\nSupplier complaints increased at Site 235 (Kampen) during the selected period.\nOverall quality metrics show improvement trends across most monitored sites.'}",
+  "trendsAndSiteComparison": "${hasNoDataForSelectedPlants || !hasMeaningfulData ? 'State clearly: "No data is available for the selected plants and time period to perform trend analysis or site comparisons. Please verify plant selection or upload data for these plants."' : 'MUST identify and describe: (1) Top 2-3 performing sites with their PPM values (lowest PPM = best performance), mention specific site numbers with their city/location and PPM values like \'Site 175 (Vienna) with Customer PPM of 20.05\' or \'Site 235 (Kampen) has Supplier PPM of 23.09\'. ALWAYS specify whether it\'s Customer PPM or Supplier PPM. ALWAYS include the city/location when mentioning a plant number. (2) Sites with improving trends. (3) Overall trends over time. Be specific with site numbers, cities, and values. NEVER use just \'PPM\' - always use \'Customer PPM\' or \'Supplier PPM\'. Keep descriptions concise and clear (1-2 sentences per site).'}",
+  "keyRisksAndAnomalies": "${hasNoDataForSelectedPlants || !hasMeaningfulData ? 'State clearly: "No data is available for the selected plants and time period to identify risks or anomalies. Please verify plant selection or upload data for these plants."' : 'MUST identify and describe: (1) Top 2-3 sites needing attention with their PPM values or complaint counts (highest PPM or most complaints = needs attention), mention specific site numbers with their city/location like \'Site 411 (Vienna) with Supplier PPM of 1102.87\' or \'Site 410 (Kampen) has 358 complaints\'. ALWAYS specify whether it\'s Customer PPM or Supplier PPM when mentioning PPM. ALWAYS include the city/location when mentioning a plant number. (2) Anomalies and spikes with specific months and sites. (3) Critical issues requiring immediate action. Be specific with site numbers, cities, values, and dates. NEVER use just \'PPM\' - always use \'Customer PPM\' or \'Supplier PPM\'. Keep descriptions concise and clear (1-2 sentences per item).'}",
+  "recommendedActions": ${hasNoDataForSelectedPlants || !hasMeaningfulData ? '["Title: Verify Plant Selection and Data Availability. Description: Review the selected plants and confirm that quality data has been uploaded for these plants and the selected time period. Check the Upload Data page to ensure all required files (complaints, deliveries, etc.) have been successfully processed. Expected Impact: Ensures data availability for accurate quality analysis and reporting.", "Title: Upload Missing Data. Description: If data should exist for the selected plants and period, upload the required Excel files (complaints, deliveries, deviations, etc.) from the Upload Data page. Verify that plant codes match the official plant list. Expected Impact: Enables comprehensive quality analysis and dashboard metrics."]' : '["Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation of what needs to be done and why. Be specific with site numbers, dates, and processes. Should be 2-3 clear, understandable sentences. Avoid jargon.]. Expected Impact: [Specific, concise outcome expected - 1 sentence maximum]", "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]", "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]", "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]", "Title: [Clear, concise action title - maximum 15 words]. Description: [Concise explanation - 2-3 clear sentences]. Expected Impact: [Specific, concise outcome - 1 sentence]"]'},
   
 CRITICAL REQUIREMENTS FOR RECOMMENDED ACTIONS:
 - Each recommended action MUST directly address a specific issue, anomaly, or finding identified in the "summary", "keyRisksAndAnomalies", or "trendsAndSiteComparison" sections above.
@@ -249,7 +275,7 @@ CRITICAL REQUIREMENTS FOR RECOMMENDED ACTIONS:
 - If specific sites or months are filtered/selected, focus actions on those sites and that time period.
 - Actions should prioritize addressing the most critical issues identified (highest PPM sites, most complaints, significant anomalies).
 - Each action should be unique and tailored to the specific findings - avoid generic recommendations.
-  "opportunitiesAndHighlights": "MUST mention: (1) Top performing sites with specific site numbers and their city/location, and why they perform well. When mentioning PPM, ALWAYS specify 'Customer PPM' or 'Supplier PPM'. ALWAYS include the city/location when mentioning a plant number (e.g., 'Site 175 (Vienna)' or 'Plant 235 in Kampen'). (2) Best practices that can be replicated. (3) Positive trends and improvements. Be specific with site numbers and cities. NEVER use just 'PPM' - always use 'Customer PPM' or 'Supplier PPM'. Keep descriptions concise and clear (1-2 sentences per point)."
+  "opportunitiesAndHighlights": "${hasNoDataForSelectedPlants || !hasMeaningfulData ? 'State clearly: "No data is available for the selected plants and time period to identify opportunities or highlights. Please verify plant selection or upload data for these plants."' : 'MUST mention: (1) Top performing sites with specific site numbers and their city/location, and why they perform well. When mentioning PPM, ALWAYS specify \'Customer PPM\' or \'Supplier PPM\'. ALWAYS include the city/location when mentioning a plant number (e.g., \'Site 175 (Vienna)\' or \'Plant 235 in Kampen\'). (2) Best practices that can be replicated. (3) Positive trends and improvements. Be specific with site numbers and cities. NEVER use just \'PPM\' - always use \'Customer PPM\' or \'Supplier PPM\'. Keep descriptions concise and clear (1-2 sentences per point).'}"
 }
 
 Always reference sites and months using the exact labels from the input (e.g. siteCode like "145", month like "2025-03"). Do not make up new sites or months.
@@ -306,6 +332,10 @@ ${selectedSites && selectedSites.length > 0 ? `- SELECTED SITES: ${selectedSites
 ${selectedMonths && selectedMonths.length > 0 ? `- SELECTED MONTHS: ${selectedMonths.join(', ')}` : '- All months included (no month filter applied)'}
 ${filterContextDesc.length > 0 ? `\nACTIVE FILTERS:\n${filterContextDesc.join('\n')}\n` : ''}
 
+${hasNoDataForSelectedPlants ? `\n⚠️ CRITICAL: NO DATA AVAILABLE FOR SELECTED PLANTS\n- Selected plants: ${selectedSites?.join(', ') || 'N/A'}\n- Plants with data: ${selectedPlantsWithData.length > 0 ? selectedPlantsWithData.join(', ') : 'None'}\n- You MUST state clearly that there is no data available for the selected plants and period.\n- Do NOT invent or reference data from other plants.\n- Be honest and professional: "No quality data is available for the selected plants and time period. Please verify plant selection or upload data for these plants."\n` : ''}
+
+${!hasMeaningfulData && !hasNoDataForSelectedPlants ? `\n⚠️ CRITICAL: NO MEANINGFUL DATA IN FILTERED DATASET\n- All complaint counts, deviations, and PPAP values are zero.\n- You MUST state clearly that there is no meaningful data to analyze.\n- Do NOT invent or reference data that doesn't exist.\n- Be honest and professional: "No quality data is available for the selected period and filters. Please adjust filters or verify data uploads."\n` : ''}
+
 SITE CODE TO CITY/LOCATION MAPPING (from official "Webasto ET Plants.xlsx" file):
 ${siteCityMapping.length > 0 ? siteCityMapping : '- No city information available for sites'}
 ${validatedPlants.length > 0 ? `\nValidated Plants (found in official file): ${validatedPlants.join(', ')}` : ''}
@@ -317,6 +347,7 @@ IMPORTANT:
 - The summary should directly correspond to the metrics displayed on the dashboard (complaints, deliveries, defective parts, PPM).
 - All statements must be professional, concise, and based strictly on the filtered data provided.
 - The recommended actions MUST be based on the findings, anomalies, and trends identified in this specific filtered dataset. Do NOT provide generic actions that could apply to any quality system.
+- ${hasNoDataForSelectedPlants || !hasMeaningfulData ? 'CRITICAL: If there is no data available, you MUST state this clearly and honestly. Do NOT invent data or reference plants that were not selected or have no data.' : 'If there is no meaningful data, state this clearly rather than inventing information.'}
 
 COMPLAINT STATISTICS:
 - Customer Complaints (Q1): ${totalQ1}
