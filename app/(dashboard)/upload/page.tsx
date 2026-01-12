@@ -117,6 +117,12 @@ async function postFormDataWithProgress<T>(
 
     xhr.onload = () => {
       try {
+        // Handle HTTP 413 (Payload Too Large) specifically
+        if (xhr.status === 413) {
+          reject(new Error("Upload failed: File size too large (HTTP 413). The system will automatically split large uploads into smaller batches. Please try again."));
+          return;
+        }
+        
         // Check if response is HTML (error page) instead of JSON
         const contentType = xhr.getResponseHeader("content-type") || "";
         const responseText = xhr.responseText || "";
@@ -395,14 +401,75 @@ export default function UploadPage() {
     setUploading((prev) => ({ ...prev, [section]: true }));
     setProgressBySection((p) => ({ ...p, [section]: { percent: 0, status: "uploading" } }));
     try {
-      const formData = new FormData();
-      formData.append("fileType", section);
-      files.forEach((f) => formData.append("files", f));
-      const data = await postFormDataWithProgress<any>("/api/upload", formData, (pct) => {
-        setProgressBySection((p) => ({ ...p, [section]: { percent: pct, status: "uploading" } }));
-      });
+      // Check total file size and implement chunked uploads for large payloads
+      const MAX_FILES_PER_BATCH = 3; // Upload max 3 files at a time to avoid 413 errors
+      const MAX_TOTAL_SIZE = 4 * 1024 * 1024; // 4MB limit per batch (conservative for Vercel Hobby)
+      
+      let totalSize = files.reduce((sum, f) => sum + f.size, 0);
+      let needsChunking = files.length > MAX_FILES_PER_BATCH || totalSize > MAX_TOTAL_SIZE;
+      
+      let allResults: any = {
+        complaints: [],
+        deliveries: [],
+        plants: [],
+        ppaps: [],
+        deviations: [],
+        errors: [],
+      };
+      
+      if (needsChunking && files.length > MAX_FILES_PER_BATCH) {
+        // Upload files in batches
+        const batches: File[][] = [];
+        for (let i = 0; i < files.length; i += MAX_FILES_PER_BATCH) {
+          batches.push(files.slice(i, i + MAX_FILES_PER_BATCH));
+        }
+        
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+          const batch = batches[batchIndex];
+          const formData = new FormData();
+          formData.append("fileType", section);
+          batch.forEach((f) => formData.append("files", f));
+          
+          const batchProgress = (pct: number) => {
+            // Calculate progress: previous batches + current batch progress
+            const baseProgress = (batchIndex / batches.length) * 100;
+            const batchProgress = (pct / batches.length);
+            setProgressBySection((p) => ({ ...p, [section]: { percent: Math.round(baseProgress + batchProgress), status: "uploading" } }));
+          };
+          
+          const batchData = await postFormDataWithProgress<any>("/api/upload", formData, batchProgress);
+          
+          // Merge results
+          if (batchData.complaints) allResults.complaints.push(...(batchData.complaints || []));
+          if (batchData.deliveries) allResults.deliveries.push(...(batchData.deliveries || []));
+          if (batchData.plants) allResults.plants.push(...(batchData.plants || []));
+          if (batchData.ppaps) allResults.ppaps.push(...(batchData.ppaps || []));
+          if (batchData.deviations) allResults.deviations.push(...(batchData.deviations || []));
+          if (batchData.errors) allResults.errors.push(...(batchData.errors || []));
+        }
+      } else {
+        // Single batch upload
+        const formData = new FormData();
+        formData.append("fileType", section);
+        files.forEach((f) => formData.append("files", f));
+        const data = await postFormDataWithProgress<any>("/api/upload", formData, (pct) => {
+          setProgressBySection((p) => ({ ...p, [section]: { percent: pct, status: "uploading" } }));
+        });
+        
+        // Copy results
+        if (data.complaints) allResults.complaints = data.complaints;
+        if (data.deliveries) allResults.deliveries = data.deliveries;
+        if (data.plants) allResults.plants = data.plants;
+        if (data.ppaps) allResults.ppaps = data.ppaps;
+        if (data.deviations) allResults.deviations = data.deviations;
+        if (data.errors) allResults.errors = data.errors;
+      }
+      
       setProgressBySection((p) => ({ ...p, [section]: { percent: 100, status: "success" } }));
       setUploadedFileNamesBySection((p) => ({ ...p, [section]: files.map((f) => f.name) }));
+      
+      // Use merged results
+      const data = allResults;
 
       const summary: Record<string, string | number> = { files: files.length };
       if (section === "complaints") {
