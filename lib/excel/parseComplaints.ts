@@ -37,13 +37,24 @@ function normalizeString(str: string): string {
 
 /**
  * Find matching column index in headers
+ * Prioritizes exact case-sensitive matches, then falls back to normalized matches
  */
 function findColumnIndex(
   headers: string[],
   possibleNames: string[]
 ): number | undefined {
-  const normalizedHeaders = headers.map(normalizeString);
+  // First, try exact case-sensitive matches (for "Material" and "Material description")
+  for (const possibleName of possibleNames) {
+    const exactIndex = headers.findIndex(
+      (h) => h === possibleName || h.trim() === possibleName
+    );
+    if (exactIndex !== -1) {
+      return exactIndex;
+    }
+  }
 
+  // Then, try normalized (case-insensitive) matches
+  const normalizedHeaders = headers.map(normalizeString);
   for (const possibleName of possibleNames) {
     const normalized = normalizeString(possibleName);
     const index = normalizedHeaders.findIndex(

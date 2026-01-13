@@ -344,6 +344,7 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
               <TableHead className="text-right">Original Value</TableHead>
               <TableHead>Unit</TableHead>
               <TableHead className="text-right">Converted Value</TableHead>
+              <TableHead>Converted Unit</TableHead>
               <TableHead>Material Number</TableHead>
               <TableHead>Material Description</TableHead>
               {editorRole && <TableHead className="w-[100px]">Actions</TableHead>}
@@ -358,7 +359,7 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
               if (isEditing) {
                 return (
                   <TableRow key={complaint.id}>
-                    <TableCell colSpan={editorRole ? 11 : 10}>
+                    <TableCell colSpan={editorRole ? 12 : 11}>
                       <ComplaintRowEditor
                         complaint={complaint}
                         status={status}
@@ -407,6 +408,12 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
                       : status?.convertedValue !== undefined
                       ? status.convertedValue.toLocaleString("de-DE", { maximumFractionDigits: 2 })
                       : complaint.defectiveParts.toLocaleString("de-DE")}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">
+                      {/* Show PC if conversion was made, otherwise show "-" */}
+                      {complaint.conversion?.wasConverted ? "PC" : (status?.convertedValue !== undefined ? "PC" : "-")}
+                    </Badge>
                   </TableCell>
                   <TableCell className="font-mono text-sm">
                     {complaint.materialNumber || "-"}

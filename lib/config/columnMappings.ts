@@ -148,6 +148,7 @@ export const DEFAULT_COMPLAINT_COLUMN_MAPPING: ComplaintColumnMapping = {
     'unit measure',
   ],
   materialDescription: [
+    'Material description', // Exact match for "Material description" column (case-sensitive priority)
     'material description', // Primary match for "Material description" column
     'material desc',
     'material text',
@@ -157,6 +158,7 @@ export const DEFAULT_COMPLAINT_COLUMN_MAPPING: ComplaintColumnMapping = {
     // Note: "material" is intentionally excluded to avoid conflict with materialNumber
   ],
   materialNumber: [
+    'Material', // Exact match for "Material" column (case-sensitive priority)
     'material', // Primary match for "Material" column
     'material number',
     'material no',
