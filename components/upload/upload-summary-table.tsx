@@ -94,17 +94,17 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
     return [...unchanged, ...edited];
   }, [summary, editedComplaints, conversionStatus]);
   
-  // Get unique values for filters
+  // Get unique values for filters (filter out empty strings)
   const availablePlants = useMemo(() => {
-    return Array.from(new Set(allComplaints.map(c => c.siteCode))).sort();
+    return Array.from(new Set(allComplaints.map(c => c.siteCode).filter(s => s && s.trim() !== ""))).sort();
   }, [allComplaints]);
   
   const availableUnits = useMemo(() => {
-    return Array.from(new Set(allComplaints.map(c => c.unitOfMeasure || "PC"))).sort();
+    return Array.from(new Set(allComplaints.map(c => c.unitOfMeasure || "PC").filter(u => u && u.trim() !== ""))).sort();
   }, [allComplaints]);
   
   const availableTypes = useMemo(() => {
-    return Array.from(new Set(allComplaints.map(c => c.notificationType))).sort();
+    return Array.from(new Set(allComplaints.map(c => c.notificationType).filter(t => t && t.trim() !== ""))).sort();
   }, [allComplaints]);
 
   // Filter complaints based on filter criteria
@@ -264,7 +264,7 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All plants</SelectItem>
-                {availablePlants.map((plant) => (
+                {availablePlants.filter(plant => plant && plant.trim() !== "").map((plant) => (
                   <SelectItem key={plant} value={plant}>
                     {plant}
                   </SelectItem>
@@ -282,7 +282,7 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All units</SelectItem>
-                {availableUnits.map((unit) => (
+                {availableUnits.filter(unit => unit && unit.trim() !== "").map((unit) => (
                   <SelectItem key={unit} value={unit}>
                     {unit}
                   </SelectItem>
@@ -300,7 +300,7 @@ export function UploadSummaryTable({ summary, onSave, editorRole }: UploadSummar
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
-                {availableTypes.map((type) => (
+                {availableTypes.filter(type => type && type.trim() !== "").map((type) => (
                   <SelectItem key={type} value={type}>
                     {type}
                   </SelectItem>
