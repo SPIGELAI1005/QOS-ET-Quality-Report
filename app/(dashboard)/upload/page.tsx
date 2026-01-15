@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Upload, Loader2, FileSpreadsheet, X, CheckCircle2, ExternalLink, Plus, History, Download, Check, Table2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { MonthlySiteKpi } from "@/lib/domain/types";
+import type { Delivery, MonthlySiteKpi } from "@/lib/domain/types";
+import { calculateGlobalPPM, calculateMonthlySiteKpis } from "@/lib/domain/kpi";
 import * as XLSX from "xlsx";
 import { ROLE_CHANGED_EVENT, ROLE_STORAGE_KEY, type RoleKey } from "@/lib/auth/roles";
 import { dispatchKpiDataUpdated } from "@/lib/data/events";
@@ -98,6 +99,31 @@ function safeJsonParse<T>(raw: string | null): T | null {
   } catch {
     return null;
   }
+}
+
+const STORED_COMPLAINTS_KEY = "qos-et-complaints-parsed";
+const STORED_DELIVERIES_KEY = "qos-et-deliveries-parsed";
+
+function reviveComplaint(raw: any): Complaint {
+  return {
+    ...raw,
+    createdOn: raw?.createdOn ? new Date(raw.createdOn) : new Date(""),
+  } as Complaint;
+}
+
+function reviveDelivery(raw: any): Delivery {
+  return {
+    ...raw,
+    date: raw?.date ? new Date(raw.date) : new Date(""),
+  } as Delivery;
+}
+
+function mergeById<T extends { id: string }>(existing: T[], next: T[]): T[] {
+  const byId = new Map<string, T>(existing.map((x) => [x.id, x]));
+  next.forEach((x) => {
+    if (x?.id) byId.set(x.id, x);
+  });
+  return Array.from(byId.values());
 }
 
 function Separator({ className }: { className?: string }) {
@@ -197,6 +223,10 @@ export default function UploadPage() {
     percent: 0,
     status: "idle",
   });
+  const [storedParsedCounts, setStoredParsedCounts] = useState<{ complaints: number; deliveries: number }>({
+    complaints: 0,
+    deliveries: 0,
+  });
 
   const [progressBySection, setProgressBySection] = useState<
     Record<UploadSectionKey, { percent: number; status: "idle" | "uploading" | "success" | "error" }>
@@ -209,15 +239,9 @@ export default function UploadPage() {
     plants: { percent: 0, status: "idle" },
   });
 
-  // Check if complaints and deliveries are successfully uploaded
-  const complaintsUploaded = useMemo(
-    () => progressBySection.complaints.status === "success" && complaintsFiles.length > 0,
-    [progressBySection.complaints.status, complaintsFiles.length]
-  );
-  const deliveriesUploaded = useMemo(
-    () => progressBySection.deliveries.status === "success" && deliveriesFiles.length > 0,
-    [progressBySection.deliveries.status, deliveriesFiles.length]
-  );
+  // Consider a section "uploaded" if we have parsed data stored (supports incremental uploads)
+  const complaintsUploaded = useMemo(() => storedParsedCounts.complaints > 0, [storedParsedCounts.complaints]);
+  const deliveriesUploaded = useMemo(() => storedParsedCounts.deliveries > 0, [storedParsedCounts.deliveries]);
   const canCalculate = useMemo(
     () => complaintsUploaded && deliveriesUploaded && !calculatingKpis,
     [complaintsUploaded, deliveriesUploaded, calculatingKpis]
@@ -342,6 +366,15 @@ export default function UploadPage() {
 
     const storedKpis = safeJsonParse<UploadKpisResponse>(localStorage.getItem("qos-et-upload-kpis-result"));
     if (storedKpis) setKpisResult(storedKpis);
+
+    const storedComplaints = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
+    const storedDeliveries = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
+    setStoredParsedCounts({ complaints: storedComplaints.length, deliveries: storedDeliveries.length });
+    setProgressBySection((p) => ({
+      ...p,
+      complaints: storedComplaints.length > 0 ? { percent: 100, status: "success" } : p.complaints,
+      deliveries: storedDeliveries.length > 0 ? { percent: 100, status: "success" } : p.deliveries,
+    }));
   }, []);
 
   useEffect(() => {
@@ -503,6 +536,15 @@ export default function UploadPage() {
         summary.q3 = q3;
         summary.totalDefectiveParts = totalDefects;
 
+        // Persist parsed complaints so KPI calculation can happen without re-uploading deliveries
+        if (typeof window !== "undefined") {
+          const existing = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
+          const merged = mergeById(existing.filter((x) => x?.id), (items as any[]).filter((x) => x?.id));
+          localStorage.setItem(STORED_COMPLAINTS_KEY, JSON.stringify(merged));
+          setStoredParsedCounts((p) => ({ ...p, complaints: merged.length }));
+          setProgressBySection((p) => ({ ...p, complaints: { percent: 100, status: "success" } }));
+        }
+
         // Create upload summary with conversion status
         const complaints = items as Complaint[];
         conversionStatus = complaints.map(c => {
@@ -543,6 +585,15 @@ export default function UploadPage() {
         summary.totalQuantity = totalQty;
         summary.customerQuantity = custQty;
         summary.supplierQuantity = supQty;
+
+        // Persist parsed deliveries so KPI calculation can happen without re-uploading complaints
+        if (typeof window !== "undefined") {
+          const existing = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
+          const merged = mergeById(existing.filter((x) => x?.id), (items as any[]).filter((x) => x?.id));
+          localStorage.setItem(STORED_DELIVERIES_KEY, JSON.stringify(merged));
+          setStoredParsedCounts((p) => ({ ...p, deliveries: merged.length }));
+          setProgressBySection((p) => ({ ...p, deliveries: { percent: 100, status: "success" } }));
+        }
       }
       if (section === "ppap") {
         const items = Array.isArray(data?.ppaps) ? data.ppaps : [];
@@ -622,6 +673,11 @@ export default function UploadPage() {
         // For other sections, save change history separately
         saveChangeHistory(entry.id, [uploadChangeHistory]);
       }
+
+      // Auto-calculate KPIs in the background after complaints/deliveries uploads
+      if (section === "complaints" || section === "deliveries") {
+        void calculateKpisFromStoredData({ writeHistory: false });
+      }
     } catch (e) {
       setProgressBySection((p) => ({ ...p, [section]: { percent: p[section].percent, status: "error" } }));
       setErrors((prev) => ({ ...prev, [section]: e instanceof Error ? e.message : "Upload failed." }));
@@ -641,126 +697,88 @@ export default function UploadPage() {
     }
   }
 
+  async function calculateKpisFromStoredData(options: { writeHistory: boolean }) {
+    if (typeof window === "undefined") return;
+    const rawComplaints = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
+    const rawDeliveries = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
+
+    if (rawComplaints.length === 0 || rawDeliveries.length === 0) {
+      // Don't spam errors during incremental uploads; recalc will happen once both exist.
+      return;
+    }
+
+    setCalculatingKpis(true);
+    setKpiCalculationProgress({ percent: 10, status: "calculating" });
+
+    try {
+      // Revive dates (API JSON serialization turns Date into strings)
+      const complaints = rawComplaints.map(reviveComplaint);
+      const deliveries = rawDeliveries.map(reviveDelivery);
+
+      setKpiCalculationProgress({ percent: 60, status: "calculating" });
+
+      const monthlySiteKpis = calculateMonthlySiteKpis(complaints, deliveries);
+      const globalPpm = calculateGlobalPPM(complaints, deliveries);
+
+      const result: UploadKpisResponse = {
+        monthlySiteKpis,
+        globalPpm,
+        summary: {
+          totalComplaints: complaints.length,
+          totalDeliveries: deliveries.length,
+          siteMonthCombinations: monthlySiteKpis.length,
+        },
+      };
+
+      setKpisResult(result);
+      localStorage.setItem("qos-et-kpis", JSON.stringify(monthlySiteKpis));
+      localStorage.setItem("qos-et-global-ppm", JSON.stringify(globalPpm));
+      localStorage.setItem("qos-et-upload-kpis-result", JSON.stringify(result));
+      dispatchKpiDataUpdated();
+
+      setKpiCalculationProgress({ percent: 100, status: "success" });
+
+      if (options.writeHistory) {
+        const entry: UploadHistoryEntry = {
+          id: makeId("kpis"),
+          uploadedAtIso: new Date().toISOString(),
+          section: "deliveries",
+          files: [],
+          summary: {
+            totalComplaints: result.summary.totalComplaints,
+            totalDeliveries: result.summary.totalDeliveries,
+            siteMonthCombinations: result.summary.siteMonthCombinations,
+          },
+          usedIn: ["QOS ET Dashboard", "Customer Performance", "Supplier Performance", "AI Management Summary"],
+          success: true,
+          notes: "KPIs calculated from stored uploads and stored in localStorage as qos-et-kpis / qos-et-global-ppm",
+        };
+        persistHistory([entry, ...history]);
+      }
+    } catch (e) {
+      setKpiCalculationProgress({ percent: 0, status: "error" });
+      if (options.writeHistory) {
+        setErrors((prev) => ({ ...prev, deliveries: e instanceof Error ? e.message : "Failed to calculate KPIs." }));
+      }
+    } finally {
+      setCalculatingKpis(false);
+    }
+  }
+
   async function recalculateKpis() {
     setErrors((prev) => ({ ...prev, complaints: null, deliveries: null }));
-    if (complaintsFiles.length === 0 || deliveriesFiles.length === 0) {
+    if (typeof window === "undefined") return;
+    const rawComplaints = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
+    const rawDeliveries = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
+    if (rawComplaints.length === 0 || rawDeliveries.length === 0) {
       setErrors((prev) => ({
         ...prev,
         deliveries: "To calculate KPIs, please upload at least one complaints file and one deliveries file.",
       }));
       return;
     }
-    
-    setCalculatingKpis(true);
-    setKpiCalculationProgress({ percent: 0, status: "calculating" });
-    
-    try {
-      const formData = new FormData();
-      complaintsFiles.forEach((f) => formData.append("complaintsFiles", f));
-      deliveriesFiles.forEach((f) => formData.append("deliveryFiles", f));
-      
-      // Use XMLHttpRequest for progress tracking
-      const result = await new Promise<UploadKpisResponse>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/upload-kpis");
-        
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            // Upload progress: 0-50%
-            const uploadPercent = Math.round((e.loaded / e.total) * 50);
-            setKpiCalculationProgress({ percent: uploadPercent, status: "calculating" });
-          }
-        };
-        
-        xhr.onload = () => {
-          try {
-            // Processing progress: 50-100%
-            setKpiCalculationProgress({ percent: 75, status: "calculating" });
-            
-            const contentType = xhr.getResponseHeader("content-type") || "";
-            if (!contentType.includes("application/json")) {
-              reject(new Error(`KPI calculation failed: Server returned non-JSON response (HTTP ${xhr.status}). This may indicate a timeout or server error.`));
-              return;
-            }
-            
-            const json = xhr.responseText ? JSON.parse(xhr.responseText) : {};
-            if (xhr.status >= 200 && xhr.status < 300) {
-              setKpiCalculationProgress({ percent: 100, status: "success" });
-              resolve(json as UploadKpisResponse);
-            } else {
-              reject(new Error(json?.error || `KPI calculation failed (HTTP ${xhr.status})`));
-            }
-          } catch (e) {
-            const errorMsg = e instanceof Error ? e.message : "Unknown error";
-            reject(new Error(`KPI calculation failed: ${errorMsg}`));
-          }
-        };
-        
-        xhr.onerror = () => reject(new Error("KPI calculation failed: network error"));
-        xhr.send(formData);
-      });
 
-      setKpisResult(result);
-      if (typeof window !== "undefined") {
-        // CRITICAL: Merge new data with existing data instead of replacing it
-        // This allows users to upload data for multiple months incrementally
-        const existing = safeJsonParse<MonthlySiteKpi[]>(localStorage.getItem("qos-et-kpis")) || [];
-        const byKey = new Map(existing.map((k) => [`${k.month}__${k.siteCode}`, k] as const));
-        
-        // Merge new data: if same month+site exists, update it; otherwise add new
-        result.monthlySiteKpis.forEach((kpi) => {
-          byKey.set(`${kpi.month}__${kpi.siteCode}`, kpi);
-        });
-        
-        const merged = Array.from(byKey.values()).sort(
-          (a, b) => a.month.localeCompare(b.month) || a.siteCode.localeCompare(b.siteCode)
-        );
-        
-        localStorage.setItem("qos-et-kpis", JSON.stringify(merged));
-        localStorage.setItem("qos-et-global-ppm", JSON.stringify(result.globalPpm));
-        localStorage.setItem("qos-et-upload-kpis-result", JSON.stringify(result));
-        // Notify other components that KPI data has been updated
-        dispatchKpiDataUpdated();
-      }
-
-      const entry: UploadHistoryEntry = {
-        id: makeId("kpis"),
-        uploadedAtIso: new Date().toISOString(),
-        section: "deliveries",
-        files: [
-          ...complaintsFiles.map((f) => ({ name: f.name, size: f.size })),
-          ...deliveriesFiles.map((f) => ({ name: f.name, size: f.size })),
-        ],
-        summary: {
-          totalComplaints: result.summary.totalComplaints,
-          totalDeliveries: result.summary.totalDeliveries,
-          siteMonthCombinations: result.summary.siteMonthCombinations,
-        },
-        usedIn: ["QOS ET Dashboard", "Customer Performance", "Supplier Performance", "AI Management Summary"],
-        success: true,
-        notes: "KPIs calculated and stored in localStorage as qos-et-kpis / qos-et-global-ppm",
-      };
-      persistHistory([entry, ...history]);
-    } catch (e) {
-      setKpiCalculationProgress({ percent: 0, status: "error" });
-      setErrors((prev) => ({ ...prev, deliveries: e instanceof Error ? e.message : "Failed to calculate KPIs." }));
-      const entry: UploadHistoryEntry = {
-        id: makeId("kpis_error"),
-        uploadedAtIso: new Date().toISOString(),
-        section: "deliveries",
-        files: [
-          ...complaintsFiles.map((f) => ({ name: f.name, size: f.size })),
-          ...deliveriesFiles.map((f) => ({ name: f.name, size: f.size })),
-        ],
-        summary: { note: "KPI calculation failed" },
-        usedIn: ["QOS ET Dashboard", "Customer Performance", "Supplier Performance", "AI Management Summary"],
-        success: false,
-        notes: e instanceof Error ? e.message : "Failed to calculate KPIs.",
-      };
-      persistHistory([entry, ...history]);
-    } finally {
-      setCalculatingKpis(false);
-    }
+    await calculateKpisFromStoredData({ writeHistory: true });
   }
 
   function mergeManualIntoKpis(manual: ManualKpiEntry[]) {

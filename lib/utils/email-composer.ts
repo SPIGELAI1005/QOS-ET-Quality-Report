@@ -15,6 +15,11 @@ export interface EmailContent {
   isPositive: boolean;
 }
 
+function truncateForMailto(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, Math.max(0, maxChars - 16))}\n\n...(truncated)`;
+}
+
 /**
  * Determines if the email context is positive (follow-up) or negative (action required)
  */
@@ -236,8 +241,10 @@ export function buildMailtoLink(
 ): string {
   const emailContent = composeEmail(context, pageUrl);
   const params = new URLSearchParams();
-  params.set('subject', emailContent.subject);
-  params.set('body', emailContent.body);
+  // NOTE: Many email clients/browsers have strict URL length limits for mailto.
+  // Keep content compact to avoid "nothing happens" behavior.
+  params.set('subject', truncateForMailto(emailContent.subject, 140));
+  params.set('body', truncateForMailto(emailContent.body, 1400));
   
   // Add recipients if provided
   const toParam = recipients.length > 0 ? recipients.join(',') : '';

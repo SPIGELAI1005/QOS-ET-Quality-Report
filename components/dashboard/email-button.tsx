@@ -38,6 +38,15 @@ export function EmailButton({ href, onClick, className, size = "sm", title = "Se
     return (
       <a
         href={href}
+        target="_self"
+        onClick={(e) => {
+          onClick?.();
+          // Force direct navigation for mailto: to avoid popup blockers and new-tab issues.
+          if (typeof window !== "undefined" && href.startsWith("mailto:")) {
+            e.preventDefault();
+            window.location.href = href;
+          }
+        }}
         className={commonClassName}
         title={title}
         aria-label="Send Email"

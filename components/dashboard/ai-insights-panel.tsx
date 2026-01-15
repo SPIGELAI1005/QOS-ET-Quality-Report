@@ -258,20 +258,21 @@ const parseTopPerformers = (text: string): Array<{site: string; value: string; d
   if (!text) return performers;
   
   // Try to extract site numbers and PPM values - accept integers too (e.g. "PPM of 0")
+  // IMPORTANT: Site codes must be 3-digit plant codes (avoid accidental captures like "41").
   const patterns = [
-    /Site\s+(\d+)[^\d]*?(\d+[.,]?\d*)\s*PPM/gi,
-    /Site\s+(\d+)[^.]*?(\d+[.,]?\d*)[^.]*?PPM/gi,
-    /(\d+[.,]?\d*)\s*PPM[^.]*?Site\s+(\d+)/gi,
-    /site\s+(\d+)[^\d]*?(\d+[.,]?\d*)\s*ppm/gi,
-    /(\d+)\s+.*?(\d+[.,]?\d*)\s*PPM/gi
+    /Site\s+(\d{3})[^\d]*?(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM/gi,
+    /Site\s+(\d{3})[^.]*?(\d+[.,]?\d*)[^.]*?(?:Customer|Supplier)?\s*PPM/gi,
+    /(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM[^.]*?Site\s+(\d{3})/gi,
+    /(\d{3})\s*\([^)]+\)[^.]*?(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM/gi,
+    /\b(\d{3})\b[^.]{0,80}?(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM/gi
   ];
   
   for (const pattern of patterns) {
     const matches = [...text.matchAll(pattern)];
     if (matches.length > 0) {
       matches.slice(0, 3).forEach(match => {
-        const siteNum = match[1] || match[2];
-        const value = match[2] || match[1];
+        const siteNum = (match[1] && /^\d{3}$/.test(match[1]) ? match[1] : (match[2] && /^\d{3}$/.test(match[2]) ? match[2] : null));
+        const value = siteNum === match[1] ? match[2] : match[1];
         if (siteNum && value && !performers.find(p => p.site === siteNum)) {
           // Find the sentence containing this site
           const sentences = text.split(/[.!?]+/);
@@ -297,7 +298,7 @@ const parseTopPerformers = (text: string): Array<{site: string; value: string; d
       /lowest|best|top|excellent|strong|good|high-performing|performing|low\s+PPM/i.test(s) && /\d+/.test(s)
     );
     sentences.slice(0, 3).forEach((sentence) => {
-      const siteMatch = sentence.match(/Site\s+(\d+)|site\s+(\d+)|(\d{3})\s+/i);
+      const siteMatch = sentence.match(/Site\s+(\d{3})|site\s+(\d{3})|\b(\d{3})\b/i);
       const valueMatch = sentence.match(/(\d+[.,]?\d*)\s*PPM|PPM[:\s]+(\d+[.,]?\d*)/i);
       if (siteMatch) {
         const siteNum = siteMatch[1] || siteMatch[2] || siteMatch[3];
@@ -323,18 +324,21 @@ const parseNeedsAttention = (text: string): Array<{site: string; value: string; 
   if (!text) return needsAttention;
   
   // Extract high PPM sites - accept integers too
+  // IMPORTANT: Site codes must be 3-digit plant codes (avoid accidental captures like "14").
   const highPpmPatterns = [
-    /Site\s+(\d+)[^\d]*?(\d+[.,]?\d*)\s*PPM/gi,
-    /Site\s+(\d+)[^.]*?(\d+[.,]?\d*)[^.]*?PPM/gi,
-    /(\d+[.,]?\d*)\s*PPM[^.]*?Site\s+(\d+)/gi
+    /Site\s+(\d{3})[^\d]*?(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM/gi,
+    /Site\s+(\d{3})[^.]*?(\d+[.,]?\d*)[^.]*?(?:Customer|Supplier)?\s*PPM/gi,
+    /(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM[^.]*?Site\s+(\d{3})/gi,
+    /(\d{3})\s*\([^)]+\)[^.]*?(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM/gi,
+    /\b(\d{3})\b[^.]{0,80}?(\d+[.,]?\d*)\s*(?:Customer|Supplier)?\s*PPM/gi
   ];
   
   for (const pattern of highPpmPatterns) {
     const matches = [...text.matchAll(pattern)];
     if (matches.length > 0) {
       matches.slice(0, 2).forEach(match => {
-        const siteNum = match[1] || match[2];
-        const value = match[2] || match[1];
+        const siteNum = (match[1] && /^\d{3}$/.test(match[1]) ? match[1] : (match[2] && /^\d{3}$/.test(match[2]) ? match[2] : null));
+        const value = siteNum === match[1] ? match[2] : match[1];
         if (siteNum && value) {
           const sentences = text.split(/[.!?]+/);
           const relevantSentence = sentences.find(s => 
@@ -1144,6 +1148,18 @@ export function AIInsightsPanel({
   plantsData = [],
   metrics,
 }: AIInsightsPanelProps) {
+  const periodLabel = useMemo(() => {
+    const months = (selectedMonths && selectedMonths.length > 0
+      ? selectedMonths
+      : Array.from(new Set(monthlySiteKpis.map((k) => k.month)))).filter(Boolean).sort();
+
+    if (months.length === 0) return null;
+    const toLabel = (m: string) =>
+      new Date(`${m}-01`).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+
+    return months.length === 1 ? toLabel(months[0]) : `${toLabel(months[0])} – ${toLabel(months[months.length - 1])}`;
+  }, [monthlySiteKpis, selectedMonths]);
+
   // Helper function to format site code with abbreviation (prioritized)
   const formatSiteName = useCallback((siteCode: string): string => {
     const plant = plantsData.find(p => p.code === siteCode);
@@ -1179,6 +1195,34 @@ export function AIInsightsPanel({
     
     return siteCode;
   }, [plantsData, monthlySiteKpis]);
+
+  const formatSiteCityCountry = useCallback((siteCode: string): { primary: string; secondary?: string } => {
+    const plant = plantsData.find((p) => p.code === siteCode);
+    const cityRaw = plant?.city || plant?.location || "";
+    const city = cityRaw ? cityRaw.split(",")[0].trim() : "";
+    const country = (plant?.abbreviationCountry || plant?.country || "").trim();
+
+    if (city && country) {
+      return { primary: `${city}, ${country}`, secondary: `Site ${siteCode}` };
+    }
+    if (city) {
+      return { primary: city, secondary: `Site ${siteCode}` };
+    }
+
+    // Fallback to existing formatter (includes code)
+    return { primary: formatSiteName(siteCode), secondary: `Site ${siteCode}` };
+  }, [formatSiteName, plantsData]);
+
+  const clarifyStatement = useCallback((text: string): string => {
+    if (!text) return text;
+    if (!periodLabel) return text;
+
+    // Replace ambiguous "by <Month Year>" with explicit selected period wording.
+    return text.replace(
+      /\bby\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/gi,
+      (_m, month, year) => `during the selected period ending ${month} ${year} (${periodLabel})`
+    );
+  }, [periodLabel]);
   const [insights, setInsights] = useState<AIInsights | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1348,7 +1392,10 @@ export function AIInsightsPanel({
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">AI Insights</h2>
-            <p className="text-sm text-muted-foreground">Automated quality analysis</p>
+            <p className="text-sm text-muted-foreground">
+              Automated quality analysis{periodLabel ? ` • Selected period: ${periodLabel}` : ""}
+              {selectedSites && selectedSites.length > 0 ? ` • Sites: ${selectedSites.join(", ")}` : ""}
+            </p>
           </div>
         </div>
         <Button variant="outline" onClick={generateInsights} disabled={loading || monthlySiteKpis.length === 0}>
@@ -1406,7 +1453,7 @@ export function AIInsightsPanel({
               <div className="space-y-3">
                 {(keyFindings.length > 0 ? keyFindings : parseKeyFindings(insights.summary || '', selectedSites)).slice(0, 5).map((finding, idx) => {
                   // Format site codes in findings
-                  let formattedFinding = finding.trim();
+                  let formattedFinding = clarifyStatement(finding.trim());
                   const siteMatches = formattedFinding.matchAll(/\b(\d{3})\b/g);
                   for (const match of siteMatches) {
                     const siteCode = match[1];
@@ -1443,22 +1490,40 @@ export function AIInsightsPanel({
           )}
 
           {/* Top Performers and Needs Attention - Always show if we have insights */}
-          {(topPerformers.length > 0 || needsAttention.length > 0 || insights.trendsAndSiteComparison || insights.opportunitiesAndHighlights || insights.keyRisksAndAnomalies) && (
+          {(insights.trendsAndSiteComparison || insights.opportunitiesAndHighlights || insights.keyRisksAndAnomalies || topPerformers.length > 0 || needsAttention.length > 0) && (
           <div className="grid gap-6 md:grid-cols-2">
             {/* Top Performers */}
-            {(topPerformers.length > 0 || insights.trendsAndSiteComparison || insights.opportunitiesAndHighlights) && (
+            <div className="space-y-4">
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-green-500" />
                   <h3 className="text-xl font-semibold">Top Performers</h3>
                 </div>
                 <div className="space-y-3">
-                  {(topPerformers.length > 0 ? topPerformers : parseTopPerformers((insights.trendsAndSiteComparison || '') + ' ' + (insights.opportunitiesAndHighlights || ''))).slice(0, 3).map((performer, idx) => {
+                  {(() => {
+                    const items = (topPerformers.length > 0
+                      ? topPerformers
+                      : parseTopPerformers((insights.trendsAndSiteComparison || '') + ' ' + (insights.opportunitiesAndHighlights || ''))).slice(0, 3);
+
+                    if (items.length === 0) {
+                      return (
+                        <Card className="border-border bg-card/50">
+                          <CardContent className="p-5">
+                            <p className="text-sm text-muted-foreground text-center">
+                              No top performers available from AI analysis.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
+
+                    return items.map((performer, idx) => {
+                    const siteLabel = formatSiteCityCountry(performer.site);
                     const emailContext: EmailContext = {
                       type: 'topPerformer',
-                      site: formatSiteName(performer.site),
+                      site: siteLabel.primary,
                       value: performer.value,
-                      description: performer.description,
+                      description: clarifyStatement(performer.description),
                       metric: performer.metric
                     };
                     const emailLink = buildMailtoLink(emailContext, [], typeof window !== 'undefined' ? window.location.href : undefined);
@@ -1467,7 +1532,12 @@ export function AIInsightsPanel({
                     <Card key={idx} className="glass-card-glow border-border/50 transition-all shadow-sm hover:shadow-md" style={{ backgroundColor: 'rgba(156, 163, 175, 0.15)' }}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-3">
-                          <div className="text-3xl font-bold text-white">{formatSiteName(performer.site)}</div>
+                          <div>
+                            <div className="text-3xl font-bold text-white">{siteLabel.primary}</div>
+                            {siteLabel.secondary ? (
+                              <div className="text-xs text-muted-foreground mt-1">{siteLabel.secondary}</div>
+                            ) : null}
+                          </div>
                           <div className="flex items-center gap-2">
                             <EmailButton
                               href={emailLink}
@@ -1479,29 +1549,50 @@ export function AIInsightsPanel({
                           </div>
                         </div>
                         <div className="text-base font-medium text-muted-foreground mb-3">Value: {performer.value}</div>
-                        <p className="text-lg text-foreground leading-relaxed">{performer.description.replace(new RegExp(`Site\\s+${performer.site}|site\\s+${performer.site}|\\b${performer.site}\\b`, 'gi'), formatSiteName(performer.site))}</p>
+                        <p className="text-lg text-foreground leading-relaxed">
+                          {clarifyStatement(performer.description).replace(
+                            new RegExp(`Site\\s+${performer.site}|site\\s+${performer.site}|\\b${performer.site}\\b`, 'gi'),
+                            `Site ${performer.site} (${siteLabel.primary})`
+                          )}
+                        </p>
                       </CardContent>
                     </Card>
                     );
-                  })}
+                    });
+                  })()}
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Needs Attention */}
-            {(needsAttention.length > 0 || insights.keyRisksAndAnomalies) && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-red-500" />
                   <h3 className="text-xl font-semibold">Needs Attention</h3>
                 </div>
                 <div className="space-y-3">
-                  {(needsAttention.length > 0 ? needsAttention : parseNeedsAttention(insights.keyRisksAndAnomalies || '')).slice(0, 3).map((item, idx) => {
+                  {(() => {
+                    const items = (needsAttention.length > 0 ? needsAttention : parseNeedsAttention(insights.keyRisksAndAnomalies || '')).slice(0, 3);
+
+                    if (items.length === 0) {
+                      return (
+                        <Card className="border-border bg-card/50">
+                          <CardContent className="p-5">
+                            <p className="text-sm text-muted-foreground text-center">
+                              No needs-attention items available from AI analysis.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
+
+                    return items.map((item, idx) => {
+                    const siteLabel = formatSiteCityCountry(item.site);
                     const emailContext: EmailContext = {
                       type: 'needsAttention',
-                      site: formatSiteName(item.site),
+                      site: siteLabel.primary,
                       value: item.value,
-                      description: item.description,
+                      description: clarifyStatement(item.description),
                       metric: item.metric
                     };
                     const emailLink = buildMailtoLink(emailContext, [], typeof window !== 'undefined' ? window.location.href : undefined);
@@ -1510,7 +1601,12 @@ export function AIInsightsPanel({
                     <Card key={idx} className="glass-card-glow border-red-500/30 transition-all shadow-sm hover:shadow-md" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)' }}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-3">
-                          <div className="text-3xl font-bold text-white">{formatSiteName(item.site)}</div>
+                          <div>
+                            <div className="text-3xl font-bold text-white">{siteLabel.primary}</div>
+                            {siteLabel.secondary ? (
+                              <div className="text-xs text-muted-foreground mt-1">{siteLabel.secondary}</div>
+                            ) : null}
+                          </div>
                           <div className="flex items-center gap-2">
                             <EmailButton
                               href={emailLink}
@@ -1522,14 +1618,19 @@ export function AIInsightsPanel({
                           </div>
                         </div>
                         <div className="text-base font-medium text-muted-foreground mb-3">Value: {item.value}</div>
-                        <p className="text-lg text-foreground leading-relaxed">{item.description.replace(new RegExp(`Site\\s+${item.site}|site\\s+${item.site}|\\b${item.site}\\b`, 'gi'), formatSiteName(item.site))}</p>
+                        <p className="text-lg text-foreground leading-relaxed">
+                          {clarifyStatement(item.description).replace(
+                            new RegExp(`Site\\s+${item.site}|site\\s+${item.site}|\\b${item.site}\\b`, 'gi'),
+                            `Site ${item.site} (${siteLabel.primary})`
+                          )}
+                        </p>
                       </CardContent>
                     </Card>
                     );
-                  })}
+                    });
+                  })()}
                 </div>
               </div>
-            )}
           </div>
           )}
 
