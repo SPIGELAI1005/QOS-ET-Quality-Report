@@ -499,13 +499,15 @@ export function parseComplaints(
           ? String(extractValue(row, columnMap.unitOfMeasure, '') || '').trim().toUpperCase()
           : undefined;
         
+        // Parse notification type early so we can handle SAP/export variants like "Q01" or "Q1 - Customer"
+        const notificationType: NotificationType = parseNotificationType(notificationTypeStr);
+
         // For customer complaints (Q1), prefer "Defective (Internal)" column if available
         // For supplier complaints (Q2), prefer "Defective (External)" column if available
         // Otherwise fall back to "defectiveParts" column
         let defectiveParts = 0;
-        const notificationTypeStrUpper = notificationTypeStr.toUpperCase();
-        const isQ1 = notificationTypeStrUpper === 'Q1';
-        const isQ2 = notificationTypeStrUpper === 'Q2';
+        const isQ1 = notificationType === 'Q1';
+        const isQ2 = notificationType === 'Q2';
         
         if (isQ1) {
           // For Q1, prioritize "Defective (Internal)" column if it exists
@@ -572,8 +574,7 @@ export function parseComplaints(
           continue;
         }
 
-        // Parse and validate notification type
-        const notificationType: NotificationType = parseNotificationType(notificationTypeStr);
+        // Map type to category
         const category = getCategoryFromNotificationType(notificationType);
 
         // Generate ID

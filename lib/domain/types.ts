@@ -200,7 +200,8 @@ export function isInternalComplaint(notificationType: NotificationType): boolean
 export function parseNotificationType(value: string | null | undefined): NotificationType {
   if (!value) return "Other";
 
-  const normalized = value.toString().trim().toUpperCase();
+  const raw = value.toString().trim().toUpperCase();
+  const normalized = raw.replace(/\s+/g, "");
 
   // Check for exact matches
   const validTypes: NotificationType[] = ["Q1", "Q2", "Q3", "D1", "D2", "D3", "P1", "P2", "P3"];
@@ -208,23 +209,37 @@ export function parseNotificationType(value: string | null | undefined): Notific
     return normalized as NotificationType;
   }
 
+  // Handle common SAP/export variants like:
+  // - "Q01", "D02", "P03"
+  // - "Q1 - Customer", "D1/Deviation", "P2 Completed"
+  // - "Notification type: Q1"
+  // We look for first occurrence of (Q|D|P) + optional 0 + (1|2|3)
+  const embedded = raw.match(/([QDP])\s*0?([123])(?!\d)/i);
+  if (embedded) {
+    const letter = embedded[1]?.toUpperCase();
+    const digit = embedded[2];
+    if (letter === "Q") return (`Q${digit}` as NotificationType);
+    if (letter === "D") return (`D${digit}` as NotificationType);
+    if (letter === "P") return (`P${digit}` as NotificationType);
+  }
+
   // Check for partial matches or variations
   if (normalized.startsWith("Q")) {
-    const num = normalized.slice(1);
+    const num = normalized.slice(1).replace(/^0+/, ""); // allow Q01/Q02/Q03
     if (num === "1") return "Q1";
     if (num === "2") return "Q2";
     if (num === "3") return "Q3";
   }
 
   if (normalized.startsWith("D")) {
-    const num = normalized.slice(1);
+    const num = normalized.slice(1).replace(/^0+/, ""); // allow D01/D02/D03
     if (num === "1") return "D1";
     if (num === "2") return "D2";
     if (num === "3") return "D3";
   }
 
   if (normalized.startsWith("P")) {
-    const num = normalized.slice(1);
+    const num = normalized.slice(1).replace(/^0+/, ""); // allow P01/P02/P03
     if (num === "1") return "P1";
     if (num === "2") return "P2";
     if (num === "3") return "P3";
