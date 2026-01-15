@@ -456,19 +456,29 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         if (storedKpis) {
           try {
             const parsed = JSON.parse(storedKpis);
+            console.log('[Dashboard] Loaded KPIs from localStorage:', parsed.length, 'entries');
+            if (parsed.length > 0) {
+              console.log('[Dashboard] Sample KPI:', parsed[0]);
+              console.log('[Dashboard] Available months:', Array.from(new Set(parsed.map((k: any) => k.month))).sort());
+            }
             setMonthlySiteKpis(parsed);
           } catch (e) {
             console.error('Failed to parse stored KPIs:', e);
           }
+        } else {
+          console.warn('[Dashboard] No KPIs found in localStorage (qos-et-kpis)');
         }
         
         if (storedPpm) {
           try {
             const parsed = JSON.parse(storedPpm);
+            console.log('[Dashboard] Loaded global PPM from localStorage:', parsed);
             setGlobalPpm(parsed);
           } catch (e) {
             console.error('Failed to parse stored PPM:', e);
           }
+        } else {
+          console.warn('[Dashboard] No global PPM found in localStorage (qos-et-global-ppm)');
         }
       }
     };
@@ -504,7 +514,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       value: current,
       previousValue: previous,
       change,
-      changePercent: Math.abs(changePercent),
+      changePercent: changePercent, // Keep signed value for API compatibility
       trend,
     };
   }, []);
@@ -595,14 +605,23 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     );
   }, [getPeriodString, getLastUploadTimestamp, formatUploadTimestamp]);
 
-  // Initialize selected month/year to January 2026
+  // Initialize selected month/year to last available month in data, or January 2026 if no data
   useEffect(() => {
     if (selectedMonth === null || selectedYear === null) {
-      // Default to January 2026
-      setSelectedYear(2026);
-      setSelectedMonth(1);
+      // If we have data, default to the last available month
+      if (availableMonthsYears.lastMonthYear) {
+        const [year, month] = availableMonthsYears.lastMonthYear.split('-').map(Number);
+        setSelectedYear(year);
+        setSelectedMonth(month);
+        console.log('[Dashboard] Initialized to last available month:', year, month);
+      } else {
+        // Default to January 2026 if no data
+        setSelectedYear(2026);
+        setSelectedMonth(1);
+        console.log('[Dashboard] No data available, defaulting to January 2026');
+      }
     }
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, availableMonthsYears.lastMonthYear]);
 
   // Calculate total sites from all KPIs (unfiltered)
   // Total ET Sites is 22
@@ -638,6 +657,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
 
   // Filter KPIs by selected sites, filter panel filters, AND 12-month lookback period
   const filteredKpis = useMemo(() => {
+    console.log('[Dashboard] Filtering KPIs. Total KPIs:', kpis.length);
     let result = kpis;
 
     // Filter by plants (from filter panel) - prioritize filter panel over selectedSites
@@ -651,11 +671,14 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     // If neither is set, result contains all KPIs (all plants - cumulative)
 
     // Filter by 12-month lookback period (from selected month/year)
+    const beforeDateFilter = result.length;
     result = result.filter((k) => {
       const kpiDate = new Date(k.month + "-01");
       // Include months from startDate (inclusive) to endDate (inclusive)
-      return kpiDate >= lookbackPeriod.start && kpiDate <= lookbackPeriod.end;
+      const inRange = kpiDate >= lookbackPeriod.start && kpiDate <= lookbackPeriod.end;
+      return inRange;
     });
+    console.log('[Dashboard] After date filter (12-month lookback):', result.length, 'of', beforeDateFilter, 'KPIs remain. Lookback period:', lookbackPeriod.startMonthStr, 'to', lookbackPeriod.endMonthStr);
 
     // Filter by date range (if specified in filter panel - this further restricts the lookback)
     if (filters.dateFrom || filters.dateTo) {
@@ -739,6 +762,13 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       });
     }
 
+    console.log('[Dashboard] Final filtered KPIs:', result.length, 'entries');
+    if (result.length > 0) {
+      console.log('[Dashboard] Sample filtered KPI:', result[0]);
+      console.log('[Dashboard] Filtered months:', Array.from(new Set(result.map((k: any) => k.month))).sort());
+    } else {
+      console.warn('[Dashboard] No KPIs after filtering! Check date range and filters.');
+    }
     return result;
   }, [kpis, selectedSites, filters, lookbackPeriod]);
 
@@ -824,23 +854,23 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             metrics: {
               customer: {
                 complaints: customerMetrics.complaints.value,
-                complaintsTrend: customerMetrics.complaints.trend,
+                complaintsTrend: customerMetrics.complaints.changePercent, // Already signed (positive or negative)
                 defective: customerMetrics.defective.value,
-                defectiveTrend: customerMetrics.defective.trend,
+                defectiveTrend: customerMetrics.defective.changePercent, // Already signed
                 deliveries: customerMetrics.deliveries.value,
-                deliveriesTrend: customerMetrics.deliveries.trend,
+                deliveriesTrend: customerMetrics.deliveries.changePercent, // Already signed
                 ppm: customerMetrics.ppm.value,
-                ppmTrend: customerMetrics.ppm.trend,
+                ppmTrend: customerMetrics.ppm.changePercent, // Already signed
               },
               supplier: {
                 complaints: supplierMetrics.complaints.value,
-                complaintsTrend: supplierMetrics.complaints.trend,
+                complaintsTrend: supplierMetrics.complaints.changePercent, // Already signed
                 defective: supplierMetrics.defective.value,
-                defectiveTrend: supplierMetrics.defective.trend,
+                defectiveTrend: supplierMetrics.defective.changePercent, // Already signed
                 deliveries: supplierMetrics.deliveries.value,
-                deliveriesTrend: supplierMetrics.deliveries.trend,
+                deliveriesTrend: supplierMetrics.deliveries.changePercent, // Already signed
                 ppm: supplierMetrics.ppm.value,
-                ppmTrend: supplierMetrics.ppm.trend,
+                ppmTrend: supplierMetrics.ppm.changePercent, // Already signed
               },
             },
           }),
