@@ -161,16 +161,19 @@ export function CostPoorQualityClient() {
     hasData?: boolean;
     dataCount?: number;
   } | undefined>(undefined);
-  
-  // Set default complaint and notification types for this page if not already set
-  useEffect(() => {
-    if (filters.selectedComplaintTypes.length === 0) {
-      setFilters(prev => ({ ...prev, selectedComplaintTypes: ["Internal"] }));
-    }
-    if (filters.selectedNotificationTypes.length === 0) {
-      setFilters(prev => ({ ...prev, selectedNotificationTypes: ["Q3"] }));
-    }
-  }, [filters.selectedComplaintTypes.length, filters.selectedNotificationTypes.length, setFilters]);
+
+  // IMPORTANT:
+  // This page is scoped to Internal/Q3 by design, but we must NOT persist those defaults into the
+  // global filters because that would hide Q1/Q2 on the main Dashboard and other pages.
+  // We apply Internal/Q3 locally via `effectiveFilters`.
+  const effectiveFilters = useMemo<FilterState>(
+    () => ({
+      ...filters,
+      selectedComplaintTypes: ["Internal"],
+      selectedNotificationTypes: ["Q3"],
+    }),
+    [filters]
+  );
 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -251,17 +254,17 @@ export function CostPoorQualityClient() {
   const allowedPlantCodes = useMemo(() => new Set(plantsData.map((p) => p.code)), [plantsData]);
 
   const filteredKpis = useMemo(() => {
-    const plantSet = new Set(filters.selectedPlants);
+    const plantSet = new Set(effectiveFilters.selectedPlants);
     return kpis.filter((kpi) => {
       const plantCode = normalizeToPlantCode(kpi.siteCode, allowedPlantCodes);
       if (!plantCode) return false;
 
       const plantOk = plantSet.size === 0 || plantSet.has(plantCode);
       const lookbackOk = isWithinDateRange(kpi.month, lookbackPeriod.start, lookbackPeriod.end);
-      const dateOk = isWithinDateRange(kpi.month, filters.dateFrom, filters.dateTo);
+      const dateOk = isWithinDateRange(kpi.month, effectiveFilters.dateFrom, effectiveFilters.dateTo);
       return plantOk && lookbackOk && dateOk;
     });
-  }, [kpis, filters.dateFrom, filters.dateTo, filters.selectedPlants, allowedPlantCodes, lookbackPeriod.start, lookbackPeriod.end]);
+  }, [kpis, effectiveFilters.dateFrom, effectiveFilters.dateTo, effectiveFilters.selectedPlants, allowedPlantCodes, lookbackPeriod.start, lookbackPeriod.end]);
 
   const internalComplaintsTotal = useMemo(() => {
     return filteredKpis.reduce((sum, kpi) => sum + (kpi.internalComplaintsQ3 || 0), 0);
@@ -951,14 +954,15 @@ export function CostPoorQualityClient() {
       <div className="flex-shrink-0">
         <FilterPanel
           monthlySiteKpis={kpis}
-          filters={filters}
+          filters={effectiveFilters}
           onFiltersChange={(next) => {
-            // Lock this page to Internal/Q3; only allow plants/date
-            setFilters({
-              ...next,
-              selectedComplaintTypes: ["Internal"],
-              selectedNotificationTypes: ["Q3"],
-            });
+            // Only persist plant/date changes globally. Do NOT persist Internal/Q3 scoping.
+            setFilters((prev) => ({
+              ...prev,
+              selectedPlants: next.selectedPlants,
+              dateFrom: next.dateFrom,
+              dateTo: next.dateTo,
+            }));
           }}
           showComplaintTypes={false}
           showNotificationTypes={false}
@@ -973,9 +977,9 @@ export function CostPoorQualityClient() {
           }
         }}
         chartContext={chartContext}
-        filters={filters}
+        filters={effectiveFilters}
         monthlySiteKpis={filteredKpis}
-        selectedSites={filters.selectedPlants.length > 0 ? filters.selectedPlants : Array.from(new Set(filteredKpis.map((k) => k.siteCode))).sort()}
+        selectedSites={effectiveFilters.selectedPlants.length > 0 ? effectiveFilters.selectedPlants : Array.from(new Set(filteredKpis.map((k) => k.siteCode))).sort()}
         selectedMonths={Array.from(new Set(filteredKpis.map(k => k.month))).sort()}
       />
     </div>
