@@ -20,7 +20,15 @@ export function TopBar() {
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [pendingRole, setPendingRole] = useState<RoleKey | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const themeValue = (theme === "light" ? "light" : "dark") as "dark" | "light";
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  // Hydration-safe theme value:
+  // On SSR (and first client render), we render "dark" consistently, then sync to the real theme after mount.
+  const themeValue = (hasMounted && theme === "light" ? "light" : "dark") as "dark" | "light";
 
   useEffect(() => {
     const storedRole = (localStorage.getItem(ROLE_STORAGE_KEY) as RoleKey | null) || "reader";
@@ -67,12 +75,11 @@ export function TopBar() {
             size="sm"
             onClick={() => setIsChatOpen(true)}
             className={cn(
-              "h-11 px-4 bg-[#00FF88] text-black hover:bg-[#00FF88] hover:border-black border-[#00FF88] border-2 font-semibold shadow-sm hover:shadow-md transition-all",
-              themeValue === "light" && "hover:text-black"
+              "h-11 px-4 bg-[#00FF88] text-black hover:bg-[#00FF88] hover:border-black border-[#00FF88] border-2 font-semibold shadow-sm hover:shadow-md transition-all hover:text-black"
             )}
           >
-            <MessageCircle className={cn("h-5 w-5 scale-x-[-1] text-black", themeValue === "light" && "hover:text-black")} />
-            <span className={cn("ml-2.5 font-semibold", themeValue === "light" && "hover:text-black")}>I A:M Q</span>
+            <MessageCircle className="h-5 w-5 scale-x-[-1] text-black" />
+            <span className="ml-2.5 font-semibold">I A:M Q</span>
           </Button>
 
           {/* Language */}
@@ -95,7 +102,9 @@ export function TopBar() {
             <SelectTrigger className="h-10 w-[170px] border-border/60 bg-background/40 backdrop-blur">
               <div className="flex items-center gap-2">
                 <SunMoon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{themeLabel}</span>
+                <span className="text-sm" suppressHydrationWarning>
+                  {themeLabel}
+                </span>
               </div>
             </SelectTrigger>
             <SelectContent align="end">
