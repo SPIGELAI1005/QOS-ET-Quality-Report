@@ -125,6 +125,32 @@ const parseAndFormatNumber = (valueStr: string, decimals: number = 2): string =>
   return valueStr;
 };
 
+const MONTH_YEAR_ONLY = /^(?:in\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{4}\.?$/i;
+
+function normalizeFindingFragments(items: string[]): string[] {
+  const out: string[] = [];
+
+  for (const raw of items) {
+    const s = raw.trim();
+    if (!s) continue;
+
+    // Drop pure month/year fragments if we have nothing to attach to
+    if (MONTH_YEAR_ONLY.test(s)) {
+      if (out.length > 0) {
+        const prev = out[out.length - 1].replace(/\s+$/, "");
+        const joiner = prev.endsWith(".") ? " " : ". ";
+        out[out.length - 1] = `${prev}${joiner}${s.replace(/^in\s+/i, "").replace(/\.*$/, ".")}`;
+      }
+      continue;
+    }
+
+    out.push(s);
+  }
+
+  // Remove tiny leftovers (e.g. "In January 2026.")
+  return out.filter((x) => x.length >= 12 && !MONTH_YEAR_ONLY.test(x));
+}
+
 // Parse text to extract structured data - always return up to 5 findings
 // Ensures no site appears more than twice, and findings are diverse (unless only one site is selected)
 const parseKeyFindings = (summary: string, selectedSites?: string[]): string[] => {
@@ -157,15 +183,14 @@ const parseKeyFindings = (summary: string, selectedSites?: string[]): string[] =
     findings = collect(cleaned.split(/\.\s+(?=[A-Z])/), 5).map(s => s.endsWith('.') ? s : `${s}.`);
   }
 
-  // Strategy 5: any period
-  if (findings.length < 5) {
-    findings = collect(cleaned.split(/\./), 5).map(s => s.endsWith('.') ? s : `${s}.`);
-  }
+  // Avoid splitting by any period (often produces fragments like "in January 2026.")
 
   // Final fallback: split by comma if still empty
   if (findings.length === 0 && cleaned.length > 0) {
     findings = collect(cleaned.split(/,/), 3);
   }
+
+  findings = normalizeFindingFragments(findings);
 
   // Filter findings to ensure diversity and limit site mentions
   const siteCounts: Record<string, number> = {};
@@ -232,13 +257,13 @@ const parseTopPerformers = (text: string): Array<{site: string; value: string; d
   const performers: Array<{site: string; value: string; description: string; metric: string}> = [];
   if (!text) return performers;
   
-  // Try to extract site numbers and PPM values - look for patterns like "Site 175 with 20.05 PPM" or "Site 235 (23.09 PPM)"
+  // Try to extract site numbers and PPM values - accept integers too (e.g. "PPM of 0")
   const patterns = [
-    /Site\s+(\d+)[^\d]*?(\d+[.,]\d+)\s*PPM/gi,
-    /Site\s+(\d+)[^.]*?(\d+[.,]\d+)[^.]*?PPM/gi,
-    /(\d+[.,]\d+)\s*PPM[^.]*?Site\s+(\d+)/gi,
-    /site\s+(\d+)[^\d]*?(\d+[.,]\d+)\s*ppm/gi,
-    /(\d+)\s+.*?(\d+[.,]\d+)\s*PPM/gi
+    /Site\s+(\d+)[^\d]*?(\d+[.,]?\d*)\s*PPM/gi,
+    /Site\s+(\d+)[^.]*?(\d+[.,]?\d*)[^.]*?PPM/gi,
+    /(\d+[.,]?\d*)\s*PPM[^.]*?Site\s+(\d+)/gi,
+    /site\s+(\d+)[^\d]*?(\d+[.,]?\d*)\s*ppm/gi,
+    /(\d+)\s+.*?(\d+[.,]?\d*)\s*PPM/gi
   ];
   
   for (const pattern of patterns) {
@@ -258,7 +283,7 @@ const parseTopPerformers = (text: string): Array<{site: string; value: string; d
             site: siteNum,
             value: parseAndFormatNumber(value, 2),
             description: relevantSentence.trim() || `Site ${siteNum} with ${value} PPM`,
-            metric: 'PPM'
+            metric: /supplier/i.test(relevantSentence) ? 'Supplier PPM' : /customer/i.test(relevantSentence) ? 'Customer PPM' : 'PPM'
           });
         }
       });
@@ -273,7 +298,7 @@ const parseTopPerformers = (text: string): Array<{site: string; value: string; d
     );
     sentences.slice(0, 3).forEach((sentence) => {
       const siteMatch = sentence.match(/Site\s+(\d+)|site\s+(\d+)|(\d{3})\s+/i);
-      const valueMatch = sentence.match(/(\d+[.,]\d+)\s*PPM|PPM[:\s]+(\d+[.,]\d+)/i);
+      const valueMatch = sentence.match(/(\d+[.,]?\d*)\s*PPM|PPM[:\s]+(\d+[.,]?\d*)/i);
       if (siteMatch) {
         const siteNum = siteMatch[1] || siteMatch[2] || siteMatch[3];
         if (siteNum && !performers.find(p => p.site === siteNum)) {
@@ -282,7 +307,7 @@ const parseTopPerformers = (text: string): Array<{site: string; value: string; d
             site: siteNum,
             value: value,
             description: sentence.trim(),
-            metric: 'PPM'
+            metric: /supplier/i.test(sentence) ? 'Supplier PPM' : /customer/i.test(sentence) ? 'Customer PPM' : 'PPM'
           });
         }
       }
@@ -297,11 +322,11 @@ const parseNeedsAttention = (text: string): Array<{site: string; value: string; 
   const needsAttention: Array<{site: string; value: string; description: string; metric: string}> = [];
   if (!text) return needsAttention;
   
-  // Extract high PPM sites - look for patterns like "Site 411 with 1102.87 PPM" or "extremely high PPM"
+  // Extract high PPM sites - accept integers too
   const highPpmPatterns = [
-    /Site\s+(\d+)[^\d]*?(\d+[.,]\d+)\s*PPM/gi,
-    /Site\s+(\d+)[^.]*?(\d+[.,]\d+)[^.]*?PPM/gi,
-    /(\d+[.,]\d+)\s*PPM[^.]*?Site\s+(\d+)/gi
+    /Site\s+(\d+)[^\d]*?(\d+[.,]?\d*)\s*PPM/gi,
+    /Site\s+(\d+)[^.]*?(\d+[.,]?\d*)[^.]*?PPM/gi,
+    /(\d+[.,]?\d*)\s*PPM[^.]*?Site\s+(\d+)/gi
   ];
   
   for (const pattern of highPpmPatterns) {
@@ -321,7 +346,7 @@ const parseNeedsAttention = (text: string): Array<{site: string; value: string; 
             site: siteNum,
             value: parseAndFormatNumber(value, 2),
             description: relevantSentence.trim() || `Site ${siteNum} with ${value} PPM`,
-            metric: 'PPM'
+            metric: /supplier/i.test(relevantSentence) ? 'Supplier PPM' : /customer/i.test(relevantSentence) ? 'Customer PPM' : 'PPM'
           });
         }
       });
@@ -1405,7 +1430,7 @@ export function AIInsightsPanel({
                             {formattedFinding}
                         </p>
                         <EmailButton
-                          onClick={() => window.open(emailLink, '_blank')}
+                          href={emailLink}
                           title="Send email about this finding"
                         />
                       </div>
@@ -1445,7 +1470,7 @@ export function AIInsightsPanel({
                           <div className="text-3xl font-bold text-white">{formatSiteName(performer.site)}</div>
                           <div className="flex items-center gap-2">
                             <EmailButton
-                              onClick={() => window.open(emailLink, '_blank')}
+                              href={emailLink}
                               title="Send email about this top performer"
                             />
                             <Badge variant="outline" className="bg-white text-black border-white text-xs px-2 py-0.5 rounded-full">
@@ -1488,7 +1513,7 @@ export function AIInsightsPanel({
                           <div className="text-3xl font-bold text-white">{formatSiteName(item.site)}</div>
                           <div className="flex items-center gap-2">
                             <EmailButton
-                              onClick={() => window.open(emailLink, '_blank')}
+                              href={emailLink}
                               title="Send email about this issue"
                             />
                             <Badge variant="outline" className="bg-white text-black border-white text-xs px-2 py-0.5 rounded-full">
@@ -1569,7 +1594,7 @@ export function AIInsightsPanel({
                         </div>
                         <div className="flex items-center gap-2">
                           <EmailButton
-                            onClick={() => window.open(emailLink, '_blank')}
+                            href={emailLink}
                             title="Send email about this anomaly"
                           />
                           <div className="text-lg font-bold text-amber-500 flex-shrink-0 ml-2">{anomaly.percentage}</div>
@@ -1653,7 +1678,7 @@ export function AIInsightsPanel({
                           <h4 className="text-lg font-semibold text-white flex-1 pr-4">{formattedTitle}</h4>
                           <div className="flex items-center gap-2">
                             <EmailButton
-                              onClick={() => window.open(emailLink, '_blank')}
+                              href={emailLink}
                               title="Send email about this action"
                             />
                             <Badge 
