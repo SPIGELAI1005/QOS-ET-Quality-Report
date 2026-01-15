@@ -9,6 +9,7 @@ import { useGlobalFilters } from "@/lib/hooks/useGlobalFilters";
 import { IAmQButton } from "@/components/iamq/iamq-button";
 import { IAmQChatPanel } from "@/components/iamq/iamq-chat-panel";
 import type { MonthlySiteKpi } from "@/lib/domain/types";
+import { useKpiData } from "@/lib/data/useKpiData";
 import { FileSpreadsheet, Info, Package } from "lucide-react";
 import {
   Select,
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui/select";
 
 export function WarrantiesCostsClient() {
-  const [kpis, setKpis] = useState<MonthlySiteKpi[]>([]);
+  const { monthlySiteKpis: kpis } = useKpiData();
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   // Use global filter hook for persistent filters across pages
@@ -33,18 +34,6 @@ export function WarrantiesCostsClient() {
     hasData?: boolean;
     dataCount?: number;
   } | undefined>(undefined);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const storedKpis = localStorage.getItem("qos-et-kpis");
-    if (!storedKpis) return;
-    try {
-      const parsed = JSON.parse(storedKpis) as MonthlySiteKpi[];
-      setKpis(Array.isArray(parsed) ? parsed : []);
-    } catch (e) {
-      console.error("[Warranties Costs] Failed to parse stored KPIs:", e);
-    }
-  }, []);
 
   const monthNames = useMemo(
     () => ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
@@ -72,10 +61,18 @@ export function WarrantiesCostsClient() {
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
-    // Default to December 2025
+    if (availableMonthsYears.lastMonthYear) {
+      const [y, m] = availableMonthsYears.lastMonthYear.split("-").map(Number);
+      if (y && m) {
+        setSelectedYear(y);
+        setSelectedMonth(m);
+        return;
+      }
+    }
+    // Fallback if no data loaded yet
     setSelectedYear(2025);
     setSelectedMonth(12);
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, availableMonthsYears.lastMonthYear]);
 
   const lookbackPeriod = useMemo(() => {
     if (selectedMonth === null || selectedYear === null) {

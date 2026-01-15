@@ -18,6 +18,7 @@ import { useGlobalFilters } from "@/lib/hooks/useGlobalFilters";
 import { IAmQButton } from "@/components/iamq/iamq-button";
 import { IAmQChatPanel } from "@/components/iamq/iamq-chat-panel";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useKpiData } from "@/lib/data/useKpiData";
 import {
   AlertTriangle,
   CheckCircle,
@@ -83,7 +84,7 @@ function toMonthKey(date: Date): string {
 export function DeviationsClient() {
   const { t } = useTranslation();
   const router = useRouter();
-  const [monthlySiteKpis, setMonthlySiteKpis] = useState<MonthlySiteKpi[]>([]);
+  const { monthlySiteKpis } = useKpiData();
   const [deviations, setDeviations] = useState<DeviationApiItem[]>([]);
   const [plantsData, setPlantsData] = useState<PlantData[]>([]);
   const [selectedPlantForStatusChart, setSelectedPlantForStatusChart] = useState<string | null>(null);
@@ -110,20 +111,6 @@ export function DeviationsClient() {
     hasData?: boolean;
     dataCount?: number;
   } | undefined>(undefined);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedKpis = localStorage.getItem("qos-et-kpis");
-      if (storedKpis) {
-        try {
-          const parsed = JSON.parse(storedKpis);
-          setMonthlySiteKpis(parsed);
-        } catch (e) {
-          console.error("[Deviations] Failed to parse stored KPIs:", e);
-        }
-      }
-    }
-  }, []);
 
   useEffect(() => {
     fetch("/api/deviations")
@@ -195,10 +182,18 @@ export function DeviationsClient() {
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
-    // Default to December 2025
+    if (availableMonthsYears.lastMonthYear) {
+      const [y, m] = availableMonthsYears.lastMonthYear.split("-").map(Number);
+      if (y && m) {
+        setSelectedYear(y);
+        setSelectedMonth(m);
+        return;
+      }
+    }
+    // Fallback if no data loaded yet
     setSelectedYear(2025);
     setSelectedMonth(12);
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, availableMonthsYears.lastMonthYear]);
 
   const lookbackPeriod = useMemo(() => {
     if (selectedMonth === null || selectedYear === null) {

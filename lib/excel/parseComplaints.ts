@@ -118,6 +118,23 @@ function parseDate(value: unknown): Date | null {
     return isNaN(date.getTime()) ? null : date;
   }
 
+  function normalizeYear(year: number): number {
+    // Handle 2-digit years commonly found in exports (e.g., "15.01.26")
+    if (year >= 0 && year < 100) return 2000 + year;
+    return year;
+  }
+
+  function buildDate(year: number, month: number, day: number): Date | null {
+    const y = normalizeYear(year);
+    const m = month - 1;
+    const d = day;
+    const date = new Date(y, m, d);
+    if (Number.isNaN(date.getTime())) return null;
+    // Guard against JS date overflow normalization (e.g., month=13 becomes next year)
+    if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) return null;
+    return date;
+  }
+
   // If it's a string, try to parse it
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -127,37 +144,69 @@ function parseDate(value: unknown): Date | null {
     const isoDate = new Date(trimmed);
     if (!isNaN(isoDate.getTime())) return isoDate;
 
-    // Try common formats
-    const formats = [
-      /(\d{4})-(\d{2})-(\d{2})/, // YYYY-MM-DD
-      /(\d{2})\/(\d{2})\/(\d{4})/, // MM/DD/YYYY
-      /(\d{2})\.(\d{2})\.(\d{4})/, // DD.MM.YYYY
-      /(\d{4})(\d{2})(\d{2})/, // YYYYMMDD
-    ];
+    // Extract first plausible date portion (supports timestamps like "15.01.2026 22:01:44")
+    const candidate = trimmed.match(/^\s*([0-9]{1,4}[-./][0-9]{1,2}[-./][0-9]{1,4})/)?.[1] ?? trimmed;
 
-    for (const format of formats) {
-      const match = trimmed.match(format);
-      if (match) {
-        let year: number, month: number, day: number;
-        if (format === formats[0]) {
-          // YYYY-MM-DD
-          [, year, month, day] = match.map(Number);
-        } else if (format === formats[1]) {
-          // MM/DD/YYYY
-          [, month, day, year] = match.map(Number);
-        } else if (format === formats[2]) {
-          // DD.MM.YYYY
-          [, day, month, year] = match.map(Number);
-        } else {
-          // YYYYMMDD
-          [, year, month, day] = [
-            match[1],
-            match[2],
-            match[3],
-          ].map(Number);
-        }
-        const date = new Date(year, month - 1, day);
-        if (!isNaN(date.getTime())) return date;
+    // YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD
+    {
+      const m = candidate.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
+      if (m) {
+        const d = buildDate(Number(m[1]), Number(m[2]), Number(m[3]));
+        if (d) return d;
+      }
+    }
+
+    // YYYYMMDD
+    {
+      const m = candidate.match(/^(\d{4})(\d{2})(\d{2})$/);
+      if (m) {
+        const d = buildDate(Number(m[1]), Number(m[2]), Number(m[3]));
+        if (d) return d;
+      }
+    }
+
+    // DD.MM.YYYY (or DD.MM.YY)
+    {
+      const m = candidate.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+      if (m) {
+        const d = buildDate(Number(m[3]), Number(m[2]), Number(m[1]));
+        if (d) return d;
+      }
+    }
+
+    // DD/MM/YYYY or MM/DD/YYYY (common ambiguity). Prefer EU-style when ambiguous.
+    {
+      const m = candidate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+      if (m) {
+        const a = Number(m[1]);
+        const b = Number(m[2]);
+        const y = Number(m[3]);
+
+        // If clearly one-sided (e.g., 15/01/2026), treat as DD/MM/YYYY.
+        const dmy = buildDate(y, b, a);
+        const mdy = buildDate(y, a, b);
+
+        // Choose the one that validates; if both validate (ambiguous), default to DMY (EU).
+        if (dmy && !mdy) return dmy;
+        if (mdy && !dmy) return mdy;
+        if (dmy) return dmy;
+      }
+    }
+
+    // DD-MM-YYYY or MM-DD-YYYY (same logic as slashes)
+    {
+      const m = candidate.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+      if (m) {
+        const a = Number(m[1]);
+        const b = Number(m[2]);
+        const y = Number(m[3]);
+
+        const dmy = buildDate(y, b, a);
+        const mdy = buildDate(y, a, b);
+
+        if (dmy && !mdy) return dmy;
+        if (mdy && !dmy) return mdy;
+        if (dmy) return dmy;
       }
     }
   }

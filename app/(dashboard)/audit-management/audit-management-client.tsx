@@ -14,13 +14,14 @@ import { FilterPanel, type FilterState } from "@/components/dashboard/filter-pan
 import { useGlobalFilters } from "@/lib/hooks/useGlobalFilters";
 import { IAmQButton } from "@/components/iamq/iamq-button";
 import { IAmQChatPanel } from "@/components/iamq/iamq-chat-panel";
+import { useKpiData } from "@/lib/data/useKpiData";
 import { Badge } from "@/components/ui/badge";
 import { FileSpreadsheet, Info } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function AuditManagementClient() {
   const { t } = useTranslation();
-  const [monthlySiteKpis, setMonthlySiteKpis] = useState<MonthlySiteKpi[]>([]);
+  const { monthlySiteKpis } = useKpiData();
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   // Use global filter hook for persistent filters across pages
@@ -34,18 +35,6 @@ export function AuditManagementClient() {
     hasData?: boolean;
     dataCount?: number;
   } | undefined>(undefined);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const storedKpis = localStorage.getItem("qos-et-kpis");
-    if (!storedKpis) return;
-    try {
-      const parsed = JSON.parse(storedKpis) as MonthlySiteKpi[];
-      setMonthlySiteKpis(Array.isArray(parsed) ? parsed : []);
-    } catch (e) {
-      console.error("[Audit Management] Failed to parse stored KPIs:", e);
-    }
-  }, []);
 
   const monthNames = useMemo(
     () => ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
@@ -72,10 +61,18 @@ export function AuditManagementClient() {
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
-    // Default to December 2025
+    if (availableMonthsYears.lastMonthYear) {
+      const [y, m] = availableMonthsYears.lastMonthYear.split("-").map(Number);
+      if (y && m) {
+        setSelectedYear(y);
+        setSelectedMonth(m);
+        return;
+      }
+    }
+    // Fallback if no data loaded yet
     setSelectedYear(2025);
     setSelectedMonth(12);
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, availableMonthsYears.lastMonthYear]);
 
   const lookbackPeriod = useMemo(() => {
     if (selectedMonth === null || selectedYear === null) {

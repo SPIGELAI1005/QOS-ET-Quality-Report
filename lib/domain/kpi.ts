@@ -26,9 +26,18 @@ export function groupComplaintsByMonthAndSite(
   complaints: Complaint[]
 ): Map<string, Complaint[]> {
   const grouped = new Map<string, Complaint[]>();
+  let skippedInvalid = 0;
 
   for (const complaint of complaints) {
+    if (Number.isNaN(complaint.createdOn?.getTime?.() ?? Number.NaN)) {
+      skippedInvalid++;
+      continue;
+    }
     const monthKey = formatMonth(complaint.createdOn);
+    if (monthKey.includes("NaN")) {
+      skippedInvalid++;
+      continue;
+    }
     const key = `${complaint.siteCode}::${monthKey}`;
 
     if (!grouped.has(key)) {
@@ -36,6 +45,12 @@ export function groupComplaintsByMonthAndSite(
     }
 
     grouped.get(key)!.push(complaint);
+  }
+
+  if (skippedInvalid > 0) {
+    console.warn(
+      `[kpi] Skipped ${skippedInvalid} complaint(s) due to invalid createdOn date. These rows will not appear in KPIs.`
+    );
   }
 
   return grouped;
@@ -49,9 +64,18 @@ export function groupDeliveriesByMonthAndSite(
   deliveries: Delivery[]
 ): Map<string, Delivery[]> {
   const grouped = new Map<string, Delivery[]>();
+  let skippedInvalid = 0;
 
   for (const delivery of deliveries) {
+    if (Number.isNaN(delivery.date?.getTime?.() ?? Number.NaN)) {
+      skippedInvalid++;
+      continue;
+    }
     const monthKey = formatMonth(delivery.date);
+    if (monthKey.includes("NaN")) {
+      skippedInvalid++;
+      continue;
+    }
     const key = `${delivery.siteCode}::${monthKey}`;
 
     if (!grouped.has(key)) {
@@ -59,6 +83,12 @@ export function groupDeliveriesByMonthAndSite(
     }
 
     grouped.get(key)!.push(delivery);
+  }
+
+  if (skippedInvalid > 0) {
+    console.warn(
+      `[kpi] Skipped ${skippedInvalid} delivery record(s) due to invalid date. These rows will not appear in KPIs.`
+    );
   }
 
   return grouped;
