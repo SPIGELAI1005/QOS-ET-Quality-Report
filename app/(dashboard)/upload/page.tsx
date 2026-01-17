@@ -19,6 +19,7 @@ import { Upload, Loader2, FileSpreadsheet, X, CheckCircle2, ExternalLink, Plus, 
 import { useRouter } from "next/navigation";
 import type { Delivery, MonthlySiteKpi } from "@/lib/domain/types";
 import { calculateGlobalPPM, calculateMonthlySiteKpis } from "@/lib/domain/kpi";
+import { getAllComplaints, getAllDeliveries, getDatasetCounts, upsertComplaints, upsertDeliveries } from "@/lib/data/datasets-idb";
 import * as XLSX from "xlsx";
 import { ROLE_CHANGED_EVENT, ROLE_STORAGE_KEY, type RoleKey } from "@/lib/auth/roles";
 import { dispatchKpiDataUpdated } from "@/lib/data/events";
@@ -101,9 +102,6 @@ function safeJsonParse<T>(raw: string | null): T | null {
   }
 }
 
-const STORED_COMPLAINTS_KEY = "qos-et-complaints-parsed";
-const STORED_DELIVERIES_KEY = "qos-et-deliveries-parsed";
-
 function reviveComplaint(raw: any): Complaint {
   return {
     ...raw,
@@ -116,14 +114,6 @@ function reviveDelivery(raw: any): Delivery {
     ...raw,
     date: raw?.date ? new Date(raw.date) : new Date(""),
   } as Delivery;
-}
-
-function mergeById<T extends { id: string }>(existing: T[], next: T[]): T[] {
-  const byId = new Map<string, T>(existing.map((x) => [x.id, x]));
-  next.forEach((x) => {
-    if (x?.id) byId.set(x.id, x);
-  });
-  return Array.from(byId.values());
 }
 
 function Separator({ className }: { className?: string }) {
@@ -369,14 +359,23 @@ export default function UploadPage() {
     const storedKpis = safeJsonParse<UploadKpisResponse>(localStorage.getItem("qos-et-upload-kpis-result"));
     if (storedKpis) setKpisResult(storedKpis);
 
-    const storedComplaints = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
-    const storedDeliveries = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
-    setStoredParsedCounts({ complaints: storedComplaints.length, deliveries: storedDeliveries.length });
-    setProgressBySection((p) => ({
-      ...p,
-      complaints: storedComplaints.length > 0 ? { percent: 100, status: "success" } : p.complaints,
-      deliveries: storedDeliveries.length > 0 ? { percent: 100, status: "success" } : p.deliveries,
-    }));
+    // Migration: remove old localStorage dataset keys to avoid quota issues
+    try {
+      localStorage.removeItem("qos-et-complaints-parsed");
+      localStorage.removeItem("qos-et-deliveries-parsed");
+    } catch {}
+
+    // Load counts from IndexedDB (large storage)
+    getDatasetCounts()
+      .then((counts) => {
+        setStoredParsedCounts(counts);
+        setProgressBySection((p) => ({
+          ...p,
+          complaints: counts.complaints > 0 ? { percent: 100, status: "success" } : p.complaints,
+          deliveries: counts.deliveries > 0 ? { percent: 100, status: "success" } : p.deliveries,
+        }));
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -538,12 +537,12 @@ export default function UploadPage() {
         summary.q3 = q3;
         summary.totalDefectiveParts = totalDefects;
 
-        // Persist parsed complaints so KPI calculation can happen without re-uploading deliveries
+        // Persist parsed complaints in IndexedDB to avoid localStorage quota issues
         if (typeof window !== "undefined") {
-          const existing = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
-          const merged = mergeById(existing.filter((x) => x?.id), (items as any[]).filter((x) => x?.id));
-          localStorage.setItem(STORED_COMPLAINTS_KEY, JSON.stringify(merged));
-          setStoredParsedCounts((p) => ({ ...p, complaints: merged.length }));
+          const revived = (items as any[]).filter((x) => x?.id).map(reviveComplaint);
+          await upsertComplaints(revived);
+          const counts = await getDatasetCounts();
+          setStoredParsedCounts(counts);
           setProgressBySection((p) => ({ ...p, complaints: { percent: 100, status: "success" } }));
         }
 
@@ -588,12 +587,12 @@ export default function UploadPage() {
         summary.customerQuantity = custQty;
         summary.supplierQuantity = supQty;
 
-        // Persist parsed deliveries so KPI calculation can happen without re-uploading complaints
+        // Persist parsed deliveries in IndexedDB to avoid localStorage quota issues
         if (typeof window !== "undefined") {
-          const existing = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
-          const merged = mergeById(existing.filter((x) => x?.id), (items as any[]).filter((x) => x?.id));
-          localStorage.setItem(STORED_DELIVERIES_KEY, JSON.stringify(merged));
-          setStoredParsedCounts((p) => ({ ...p, deliveries: merged.length }));
+          const revived = (items as any[]).filter((x) => x?.id).map(reviveDelivery);
+          await upsertDeliveries(revived);
+          const counts = await getDatasetCounts();
+          setStoredParsedCounts(counts);
           setProgressBySection((p) => ({ ...p, deliveries: { percent: 100, status: "success" } }));
         }
       }
@@ -701,10 +700,8 @@ export default function UploadPage() {
 
   async function calculateKpisFromStoredData(options: { writeHistory: boolean }) {
     if (typeof window === "undefined") return;
-    const rawComplaints = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
-    const rawDeliveries = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
-
-    if (rawComplaints.length === 0 || rawDeliveries.length === 0) {
+    const counts = await getDatasetCounts().catch(() => ({ complaints: 0, deliveries: 0 }));
+    if (counts.complaints === 0 || counts.deliveries === 0) {
       // Don't spam errors during incremental uploads; recalc will happen once both exist.
       return;
     }
@@ -713,9 +710,11 @@ export default function UploadPage() {
     setKpiCalculationProgress({ percent: 10, status: "calculating" });
 
     try {
-      // Revive dates (API JSON serialization turns Date into strings)
-      const complaints = rawComplaints.map(reviveComplaint);
-      const deliveries = rawDeliveries.map(reviveDelivery);
+      // Read from IndexedDB (large storage)
+      const [complaintsRaw, deliveriesRaw] = await Promise.all([getAllComplaints(), getAllDeliveries()]);
+      // Safety: ensure Date fields are Dates (in case older data was stored as strings)
+      const complaints = complaintsRaw.map(reviveComplaint);
+      const deliveries = deliveriesRaw.map(reviveDelivery);
 
       setKpiCalculationProgress({ percent: 60, status: "calculating" });
 
@@ -770,9 +769,8 @@ export default function UploadPage() {
   async function recalculateKpis() {
     setErrors((prev) => ({ ...prev, complaints: null, deliveries: null }));
     if (typeof window === "undefined") return;
-    const rawComplaints = safeJsonParse<any[]>(localStorage.getItem(STORED_COMPLAINTS_KEY)) || [];
-    const rawDeliveries = safeJsonParse<any[]>(localStorage.getItem(STORED_DELIVERIES_KEY)) || [];
-    if (rawComplaints.length === 0 || rawDeliveries.length === 0) {
+    const counts = await getDatasetCounts().catch(() => ({ complaints: 0, deliveries: 0 }));
+    if (counts.complaints === 0 || counts.deliveries === 0) {
       setErrors((prev) => ({
         ...prev,
         deliveries: "To calculate KPIs, please upload at least one complaints file and one deliveries file.",
