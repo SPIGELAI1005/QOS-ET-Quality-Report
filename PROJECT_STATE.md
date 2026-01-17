@@ -1,7 +1,7 @@
 # QOS ET Quality Report - Complete Project State Documentation
 
-**Last Updated**: 2026-01-15  
-**Version**: 1.0.5  
+**Last Updated**: 2026-01-17  
+**Version**: 1.0.6  
 **Status**: Active Development
 
 This document provides a complete snapshot of the application state, including all pages, components, features, charts, tables, and functionality. Use this document to rebuild the application if data is lost.
@@ -99,6 +99,7 @@ QOS ET Report/
 │   ├── data/                    # Data files
 │   │   ├── uploadSummary.ts     # Upload summary and change history types
 │   │   └── correctedData.ts     # Corrected data utilities
+│   │   └── datasets-idb.ts      # IndexedDB-backed storage for large parsed uploads (complaints/deliveries)
 │   ├── domain/                  # Domain models & business logic
 │   ├── excel/                   # Excel parsing utilities
 │   └── utils/                   # Utility functions
@@ -254,8 +255,12 @@ QOS ET Report/
 - **Description**: File upload, KPI calculation, and data review page
 - **Features**:
   - File upload form (complaints, deliveries, PPAP, deviations, audit, plants)
+  - Guided upload workflow (UI steps):
+    - Step 1: Select data (custom translated button; native file input hidden)
+    - Step 2: Upload
   - Progress indicators for each upload section
-  - "Calculate KPIs" button (turns green when ready)
+  - KPI calculation runs in the background after uploads once both datasets exist (complaints + deliveries)
+  - "Calculate KPIs" button remains available as a manual re-run trigger
   - KPI calculation progress bar
   - Manual data entry form
   - **Upload Summary Table** (new tab):
@@ -819,6 +824,9 @@ interface DeliveryColumnMapping {
    - Monthly aggregation per site
 
 3. **Data Storage**:
+   - IndexedDB for large parsed datasets (to avoid localStorage quota limits):
+     - DB: `qos-et-datasets`
+     - Stores: `complaints`, `deliveries`
    - localStorage for KPIs (`qos-et-kpis`)
    - localStorage for global PPM (`qos-et-global-ppm`)
    - localStorage for upload history (`qos-et-upload-history`)

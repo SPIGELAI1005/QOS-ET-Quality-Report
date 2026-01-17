@@ -1,6 +1,6 @@
 # Recovery Guide - QOS ET Quality Report
 
-**Last Updated**: 2026-01-12
+**Last Updated**: 2026-01-17
 
 This guide provides step-by-step instructions to recover and rebuild the QOS ET Quality Report application if data is lost due to crashes, corruption, or accidental deletion.
 
@@ -198,7 +198,7 @@ The `PROJECT_STATE.md` file contains:
 - [ ] Filters work as expected
 - [ ] AI insights generate correctly
 - [ ] Settings page functions
-- [ ] Data persists in localStorage
+- [ ] Data persists in localStorage / IndexedDB
 
 ### Run Tests:
 ```bash
@@ -228,8 +228,8 @@ npm run lint
    - Restore API keys if needed
 
 3. **LocalStorage Data**:
-   - Data is stored in browser localStorage
-   - Keys: 
+   - Data is stored in the browser (localStorage + IndexedDB)
+   - localStorage keys:
      - `qos-et-kpis`: Monthly site KPIs
      - `qos-et-global-ppm`: Global PPM values
      - `qos-et-upload-history`: Upload history entries
@@ -237,6 +237,21 @@ npm run lint
      - `qos-et-change-history-{uploadId}`: Change history entries (one per upload)
      - `qos-et-manual-kpis`: Manual KPI entries
      - `qos-et-upload-kpis-result`: Latest KPI calculation result
+   - IndexedDB (large parsed datasets to avoid quota limits):
+     - DB: `qos-et-datasets`
+     - Stores: `complaints`, `deliveries`
+
+### Clearing client-side data (troubleshooting)
+
+If uploads behave unexpectedly, or you want to reset all client-side data:
+
+1. **Clear localStorage** (will remove KPIs, history, and UI preferences)
+2. **Clear IndexedDB** database `qos-et-datasets` (will remove stored parsed complaints/deliveries)
+
+In Chrome/Edge:
+- DevTools → Application → Storage
+- Clear **Local Storage**
+- Clear **IndexedDB** → delete `qos-et-datasets`
      - `qos-et-role`: User role (reader/editor)
      - `qos-et-language`: Selected language (en/de/it)
      - `qos-et-sidebar-collapsed`: Sidebar state

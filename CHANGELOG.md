@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - 2026-01-17
+**Type**: Fixed
+
+**Description**: Upload stability + AI Summary completeness improvements
+
+**Details**:
+- **Upload quota fix**: Prevented `localStorage` quota errors by moving large parsed datasets to **IndexedDB**
+  - Stores parsed complaints/deliveries in IndexedDB database `qos-et-datasets` (stores: `complaints`, `deliveries`)
+  - Removes legacy localStorage keys (`qos-et-complaints-parsed`, `qos-et-deliveries-parsed`) to avoid repeated failures
+- **Upload UX**:
+  - Replaced native file input control with a custom translated “Step 1: Select data” button (native input hidden)
+  - Added “Step 2: Upload” labeling for a clear workflow
+- **KPI summary label fix**: Removed duplicate “:” in “Latest KPI Calculation” (e.g., “Complaints:” now renders once, not “Complaints::”)
+- **AI Summary**:
+  - Fixed parsing edge cases that produced numeric-only “site” labels (e.g., “41”, “14”) by restricting site parsing to 3-digit plant codes
+  - Improved clarity by surfacing the selected period in the AI Insights header
+- **Plant filter**: PLANT selection now supports true multi-select toggling (no forced single-select behavior)
+
+**Files Modified / Added**:
+- `app/(dashboard)/upload/page.tsx` - Upload UI steps + IndexedDB-backed incremental uploads + KPI label fix
+- `lib/data/datasets-idb.ts` - New IndexedDB dataset storage utility
+- `components/dashboard/filter-panel.tsx` - True multi-select plant toggling
+- `components/dashboard/ai-insights-panel.tsx` - AI Summary parsing/clarity improvements
+
+**Breaking Changes**: None
+
+**Migration Notes**:
+- Old localStorage dataset keys are automatically removed on load (migration to IndexedDB).
+
+---
+
+### Added - 2026-01-17
+**Type**: Added
+
+**Description**: AI backend guarantees rich recommended actions
+
+**Details**:
+- `/api/ai/interpret-kpis` now guarantees **at least 3 recommended actions** when AI is active
+  - Includes “monitoring/governance” actions (cadence, alerts, data completeness checks) when performance is stable
+
+**Files Modified**:
+- `app/api/ai/interpret-kpis/route.ts`
+
+**Breaking Changes**: None
+
+---
+
 ### Fixed - 2026-01-15
 **Type**: Fixed
 

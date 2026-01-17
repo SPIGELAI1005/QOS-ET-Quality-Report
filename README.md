@@ -10,6 +10,8 @@ Web application for analyzing manufacturing quality data (SAP S/4HANA exports). 
   - Supplier PPM = (Q2 defective parts / supplier deliveries) × 1,000,000
 - **Dashboards & pages**: KPI tiles, charts, tables, filters (plants/months), AI insights
 - **Uploads**: Structured multi-file uploads + progress + change history + manual entry form
+- **Incremental uploads**: complaints and deliveries can be uploaded separately; KPIs recalculate once both exist
+- **Large dataset support**: parsed uploads are stored in IndexedDB (avoids localStorage quota errors)
 - **Help**: FAQ & Glossary hub + “How to read this chart” links from key charts
 
 ## Tech stack
