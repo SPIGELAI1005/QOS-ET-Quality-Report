@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
   type DeliveryColumnMapping,
 } from "@/lib/config/columnMappings";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { Loader2 } from "lucide-react";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
