@@ -59,6 +59,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="ai">{t.settings.aiConfigurationTab}</TabsTrigger>
           <TabsTrigger value="mappings">{t.settings.columnMappingsTab}</TabsTrigger>
+          <TabsTrigger value="data">Data Migration</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ai" className="space-y-4">
@@ -176,8 +177,265 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="data" className="space-y-4">
+          <DataMigrationTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
+/**
+ * Data Migration Tab Component
+ * 
+ * Allows importing local data (IndexedDB/localStorage) to server database
+ */
+function DataMigrationTab() {
+  const [importing, setImporting] = useState(false);
+  const [dryRunning, setDryRunning] = useState(false);
+  const [result, setResult] = useState<{
+    total: number;
+    imported: number;
+    updated: number;
+    skipped: number;
+    errors: Array<{ index: number; id?: string; error: string }>;
+    message?: string;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [localCount, setLocalCount] = useState<number | null>(null);
+
+  // Load local data count on mount
+  useEffect(() => {
+    async function loadLocalCount() {
+      try {
+        const { getAllComplaints } = await import("@/lib/data/datasets-idb");
+        const complaints = await getAllComplaints();
+        setLocalCount(complaints.length);
+      } catch (err) {
+        console.error("Failed to load local count:", err);
+        setLocalCount(0);
+      }
+    }
+    loadLocalCount();
+  }, []);
+
+  const handleDryRun = async () => {
+    setDryRunning(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      // Read from local storage
+      const { getAllComplaints } = await import("@/lib/data/datasets-idb");
+      const { importComplaints } = await import("@/lib/api/complaints-import");
+      const { getComplaintRepo } = await import("@/lib/repo");
+      
+      const localComplaints = await getAllComplaints();
+      
+      if (localComplaints.length === 0) {
+        setError("No local data found to import.");
+        setDryRunning(false);
+        return;
+      }
+
+      // Convert to CreateComplaintInput format
+      const complaintInputs = localComplaints.map((c) => ({
+        id: c.id,
+        notificationNumber: c.notificationNumber,
+        notificationType: c.notificationType,
+        category: c.category,
+        plant: c.plant,
+        siteCode: c.siteCode,
+        siteName: c.siteName,
+        createdOn: c.createdOn,
+        defectiveParts: c.defectiveParts,
+        source: c.source,
+        unitOfMeasure: c.unitOfMeasure,
+        materialDescription: c.materialDescription,
+        materialNumber: c.materialNumber,
+        conversionJson: c.conversion ? JSON.stringify(c.conversion) : undefined,
+      }));
+
+      // Run dry run
+      const dryRunResult = await importComplaints(complaintInputs, true);
+      setResult(dryRunResult);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to run dry run");
+      console.error("Dry run error:", err);
+    } finally {
+      setDryRunning(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!confirm("Are you sure you want to import local data to the server? This will upsert all local complaints.")) {
+      return;
+    }
+
+    setImporting(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      // Read from local storage
+      const { getAllComplaints } = await import("@/lib/data/datasets-idb");
+      const { importComplaints } = await import("@/lib/api/complaints-import");
+      
+      const localComplaints = await getAllComplaints();
+      
+      if (localComplaints.length === 0) {
+        setError("No local data found to import.");
+        setImporting(false);
+        return;
+      }
+
+      // Convert to CreateComplaintInput format
+      const complaintInputs = localComplaints.map((c) => ({
+        id: c.id,
+        notificationNumber: c.notificationNumber,
+        notificationType: c.notificationType,
+        category: c.category,
+        plant: c.plant,
+        siteCode: c.siteCode,
+        siteName: c.siteName,
+        createdOn: c.createdOn,
+        defectiveParts: c.defectiveParts,
+        source: c.source,
+        unitOfMeasure: c.unitOfMeasure,
+        materialDescription: c.materialDescription,
+        materialNumber: c.materialNumber,
+        conversionJson: c.conversion ? JSON.stringify(c.conversion) : undefined,
+      }));
+
+      // Import
+      const importResult = await importComplaints(complaintInputs, false);
+      setResult(importResult);
+      
+      // Refresh local count
+      setLocalCount(localComplaints.length);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import data");
+      console.error("Import error:", err);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Data Migration</CardTitle>
+        <CardDescription>
+          Import existing local data (IndexedDB) to the server database. This is a one-time migration operation.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg border p-4 bg-muted/50">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Local Complaints:</span>
+              <span className="text-sm">
+                {localCount !== null ? localCount : "Loading..."}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {localCount !== null && localCount > 0
+                ? `${localCount} complaint(s) found in local storage (IndexedDB)`
+                : "No local data found"}
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+            <p className="text-sm text-destructive font-medium">Error</p>
+            <p className="text-sm text-destructive/80 mt-1">{error}</p>
+          </div>
+        )}
+
+        {result && (
+          <div className="rounded-lg border p-4 space-y-2">
+            <p className="text-sm font-medium">
+              {result.message || "Import completed"}
+            </p>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Total:</span>{" "}
+                <span className="font-medium">{result.total}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Imported:</span>{" "}
+                <span className="font-medium text-green-600">{result.imported}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Updated:</span>{" "}
+                <span className="font-medium text-blue-600">{result.updated}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Skipped:</span>{" "}
+                <span className="font-medium text-orange-600">{result.skipped}</span>
+              </div>
+            </div>
+            {result.errors.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Errors:</p>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {result.errors.slice(0, 10).map((err, i) => (
+                    <p key={i} className="text-xs text-destructive">
+                      {err.id ? `ID ${err.id}: ` : `Index ${err.index}: `}
+                      {err.error}
+                    </p>
+                  ))}
+                  {result.errors.length > 10 && (
+                    <p className="text-xs text-muted-foreground">
+                      ... and {result.errors.length - 10} more errors
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 pt-4 border-t">
+          <Button
+            onClick={handleDryRun}
+            disabled={dryRunning || importing || localCount === 0}
+            variant="outline"
+          >
+            {dryRunning ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Running Dry Run...
+              </>
+            ) : (
+              "Dry Run (Preview)"
+            )}
+          </Button>
+          <Button
+            onClick={handleImport}
+            disabled={importing || dryRunning || localCount === 0}
+          >
+            {importing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Importing...
+              </>
+            ) : (
+              "Import to Server"
+            )}
+          </Button>
+        </div>
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs text-amber-900">
+            <strong>Note:</strong> This operation will upsert complaints by ID. Existing records
+            with the same ID will be updated. This is a one-time migration - you can run it
+            multiple times safely (it will update existing records).
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

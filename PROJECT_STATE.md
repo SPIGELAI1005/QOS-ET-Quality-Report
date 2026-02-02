@@ -1,6 +1,6 @@
 # QOS ET Quality Report - Complete Project State Documentation
 
-**Last Updated**: 2026-01-17  
+**Last Updated**: 2026-02-02  
 **Version**: 1.0.6  
 **Status**: Active Development
 
@@ -36,7 +36,9 @@ This document provides a complete snapshot of the application state, including a
 - Visualize trends with interactive charts
 - Generate AI-powered insights and recommendations
 - Flexible Excel file import with automatic column detection
-- **Multi-language support** (English, German, Italian) with full translation coverage
+- **Multi-language support** (English, German, Italian) with full translation coverage (period mode, Change History, filter warning, month names)
+- **Period mode** (12 Months Back / Year to Date) on Dashboard, PPAPs, Deviations, Cost Poor Quality, Audit Management, Warranties Costs
+- **Upload duplicate handling**: merge and dedupe by record id; no full clear; duplicate badge and Change History filter
 
 ---
 
@@ -134,7 +136,9 @@ QOS ET Report/
 - **Description**: Main dashboard with comprehensive KPI overview
 - **Features**:
   - Global PPM summary cards
-  - Filter panel (plants, complaint types, notification types, date range)
+  - **Period mode toggle** (12 Months Back / Year to Date); metrics and charts respect selected mode and month/year
+  - Filter panel (plants from Webasto ET Plants.xlsx only, complaint types, notification types, date range)
+  - Filter warning (translated) when selection hides Customer/Supplier data
   - Multiple chart visualizations
   - KPI tables
   - AI insights panel
@@ -255,11 +259,13 @@ QOS ET Report/
 - **Description**: File upload, KPI calculation, and data review page
 - **Features**:
   - File upload form (complaints, deliveries, PPAP, deviations, audit, plants)
+  - **Merge and dedupe**: New uploads merge with existing data; duplicates removed by record id (no full clear)
+  - Upload summary shows duplicate count when applicable; Change History has Duplicate filter (all translated)
   - Guided upload workflow (UI steps):
     - Step 1: Select data (custom translated button; native file input hidden)
     - Step 2: Upload
   - Progress indicators for each upload section
-  - KPI calculation runs in the background after uploads once both datasets exist (complaints + deliveries)
+  - KPI calculation runs when at least one of complaints or deliveries exists (partial uploads supported)
   - "Calculate KPIs" button remains available as a manual re-run trigger
   - KPI calculation progress bar
   - Manual data entry form
@@ -338,6 +344,15 @@ QOS ET Report/
 ## Components
 
 ### Layout Components
+
+#### Layout Client Shell (`components/layout-client-shell.tsx`)
+- **Type**: Client Component (dynamically loaded from root layout)
+- **Description**: Wraps theme and toaster; loaded on demand to reduce ChunkLoadError risk
+- **Features**: Dynamic import of `theme-and-toaster.tsx`; fallback UI with Retry on ChunkLoadError
+
+#### Theme and Toaster (`components/theme-and-toaster.tsx`)
+- **Type**: Client Component (dynamically loaded)
+- **Description**: Holds ThemeProvider and Toaster; split from root layout for smaller initial chunk
 
 #### Sidebar (`components/layout/sidebar.tsx`)
 - **Type**: Client Component
@@ -947,6 +962,8 @@ interface DeliveryColumnMapping {
    - Intro content, titles, buttons, footer
 2. **Dashboard** (`app/(dashboard)/dashboard/dashboard-client.tsx`)
    - All metric tiles, chart titles, descriptions
+   - **Period mode** (12 Months Back / Year to Date) labels and YTD subtitle
+   - **Filter warning** (dashboard data hidden by filters) and Reset filters button
    - Table headers (Month, PPM, Change, Defective, Deliveries, TOTAL)
    - Tooltips ("How to read this chart", "Reset to show all plants")
    - Filter labels (Notification Types, Defect Types, period selectors)
@@ -954,6 +971,7 @@ interface DeliveryColumnMapping {
    - Excel export headers
 3. **Upload Page** (`app/(dashboard)/upload/page.tsx`)
    - All sections, labels, buttons, placeholders
+   - **Duplicate count** ("X duplicates") and Change History panel (filters, record/change types, labels, export, "Showing X of Y changes")
 4. **Glossary/FAQ Page** (`app/(dashboard)/glossary/glossary-client.tsx`)
    - All 15 FAQ questions and answers
    - All 30+ glossary terms and definitions

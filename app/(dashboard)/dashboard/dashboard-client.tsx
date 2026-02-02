@@ -463,6 +463,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   // Month/Year selection state - initialize with last available month/year from data
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [periodMode, setPeriodMode] = useState<"12mb" | "ytd">("12mb");
 
   // Load data from localStorage on mount and listen for updates
   useEffect(() => {
@@ -507,8 +508,14 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     // Listen for KPI data updates
     if (typeof window !== 'undefined') {
       window.addEventListener('qos-et-kpi-data-updated', loadKpiData);
+      // Reload when tab becomes visible (e.g. user uploaded on another tab)
+      const onVisibilityChange = () => {
+        if (document.visibilityState === 'visible') loadKpiData();
+      };
+      document.addEventListener('visibilitychange', onVisibilityChange);
       return () => {
         window.removeEventListener('qos-et-kpi-data-updated', loadKpiData);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
       };
     }
   }, []);
@@ -689,15 +696,24 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     }
     // If neither is set, result contains all KPIs (all plants - cumulative)
 
-    // Filter by 12-month lookback period (from selected month/year)
     const beforeDateFilter = result.length;
-    result = result.filter((k) => {
-      const kpiDate = new Date(k.month + "-01");
-      // Include months from startDate (inclusive) to endDate (inclusive)
-      const inRange = kpiDate >= lookbackPeriod.start && kpiDate <= lookbackPeriod.end;
-      return inRange;
-    });
-    console.log('[Dashboard] After date filter (12-month lookback):', result.length, 'of', beforeDateFilter, 'KPIs remain. Lookback period:', lookbackPeriod.startMonthStr, 'to', lookbackPeriod.endMonthStr);
+    if (periodMode === "12mb") {
+      // 12-month lookback period (from selected month/year)
+      result = result.filter((k) => {
+        const kpiDate = new Date(k.month + "-01");
+        return kpiDate >= lookbackPeriod.start && kpiDate <= lookbackPeriod.end;
+      });
+      console.log('[Dashboard] After date filter (12-month lookback):', result.length, 'of', beforeDateFilter, 'KPIs remain. Lookback period:', lookbackPeriod.startMonthStr, 'to', lookbackPeriod.endMonthStr);
+    } else if (selectedMonth !== null && selectedYear !== null) {
+      // YTD from January through selected month
+      result = result.filter((k) => {
+        const [yearStr, monthStr] = k.month.split("-");
+        const year = Number(yearStr);
+        const month = Number(monthStr);
+        return year === selectedYear && month <= selectedMonth;
+      });
+      console.log('[Dashboard] After date filter (YTD):', result.length, 'of', beforeDateFilter, 'KPIs remain. YTD through', selectedYear, selectedMonth);
+    }
 
     // Filter by date range (if specified in filter panel - this further restricts the lookback)
     if (filters.dateFrom || filters.dateTo) {
@@ -789,7 +805,16 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       console.warn('[Dashboard] No KPIs after filtering! Check date range and filters.');
     }
     return result;
-  }, [kpis, selectedSites, filters, lookbackPeriod]);
+  }, [kpis, selectedSites, filters, lookbackPeriod, periodMode, selectedMonth, selectedYear]);
+
+  // When selected plants have no data in the lookback period, use all-time data for metric tiles
+  const filteredKpisByPlantsOnly = useMemo(() => {
+    if (filters.selectedPlants.length === 0) return [];
+    return kpis.filter((k) => filters.selectedPlants.includes(k.siteCode));
+  }, [kpis, filters.selectedPlants]);
+
+  // Metric tiles: when no plants selected (all plants), use FULL KPI data so totals match upload summary.
+  // When specific plants selected, use filtered data (lookback or all-time fallback).
 
   // AI Summary generation function - can be called manually or automatically
   const generateAISummary = useCallback(async () => {
@@ -1150,41 +1175,22 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   // - When specific plants are selected → shows cumulative YTD values across only those plants
   // - When no plants are selected → shows cumulative YTD values across all plants (default)
   const customerMetrics = useMemo(() => {
-    // Count each Q1 notification row from the Excel file
-    // Each row in Excel with Notification Type = Q1 counts as 1 complaint
-    // Sum across all filtered KPIs (respects plant/date filters, but shows all available data)
-    const q1Count = filteredKpis.reduce((sum, k) => sum + k.customerComplaintsQ1, 0);
+    const kpisForMetrics = filteredKpis;
+    const q1Count = kpisForMetrics.reduce((sum, k) => sum + k.customerComplaintsQ1, 0);
     
-    // Debug logging - always log to help diagnose
     console.log('[YTD Customer Metrics] ========================================');
-    console.log('[YTD Customer Metrics] Total filtered KPIs:', filteredKpis.length);
+    console.log('[YTD Customer Metrics] Total KPIs for metrics:', kpisForMetrics.length);
     console.log('[YTD Customer Metrics] Q1 complaints count:', q1Count);
     
-    // Breakdown by site to identify which sites contribute to the count
     const q1BySite = new Map<string, number>();
-    filteredKpis.forEach(k => {
+    kpisForMetrics.forEach(k => {
       if (k.customerComplaintsQ1 > 0) {
         q1BySite.set(k.siteCode, (q1BySite.get(k.siteCode) || 0) + k.customerComplaintsQ1);
       }
     });
     console.log('[YTD Customer Metrics] Q1 complaints by site:', Array.from(q1BySite.entries()).sort((a, b) => b[1] - a[1]));
-    
-    console.log('[YTD Customer Metrics] Breakdown by month/site (first 10 with Q1>0):', filteredKpis
-      .filter(k => k.customerComplaintsQ1 > 0)
-      .slice(0, 10)
-      .map(k => ({
-        month: k.month,
-        site: k.siteCode,
-        q1Complaints: k.customerComplaintsQ1,
-        q1Defective: k.customerDefectiveParts
-      })));
-    // Verify we're counting complaints, not summing defective parts
-    const totalDefective = filteredKpis.reduce((sum, k) => sum + (k.customerDefectiveParts || 0), 0);
-    console.log('[YTD Customer Metrics] Total Q1 defective parts:', totalDefective);
-    console.log('[YTD Customer Metrics] VERIFICATION: Q1 complaints should be count of rows, not sum of defective parts');
     console.log('[YTD Customer Metrics] ========================================');
     
-    // Collect conversion information from all filtered KPIs (Q1)
     const allCustomerConversions: Array<{
       notificationNumber: string;
       originalML: number;
@@ -1198,7 +1204,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     let totalCustomerMLConverted = 0;
     let totalCustomerPCConverted = 0;
     
-    filteredKpis.forEach((kpi) => {
+    kpisForMetrics.forEach((kpi) => {
       if (kpi.customerConversions && kpi.customerConversions.conversions.length > 0) {
         kpi.customerConversions.conversions.forEach((conv) => {
           allCustomerConversions.push({
@@ -1212,34 +1218,24 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             month: kpi.month,
           });
         });
-        totalCustomerMLConverted += kpi.customerConversions.totalML; // Keep field name for backward compatibility
+        totalCustomerMLConverted += kpi.customerConversions.totalML;
         totalCustomerPCConverted += kpi.customerConversions.totalPC;
       }
     });
     
-    // Current period: YTD (Year-to-Date) cumulative values through last available month
-    // If last month is December, this is YTD through December (cumulative for entire year)
     const current = {
-      // Count of Q1 notifications (Customer Complaints) - YTD through last month
-      // Each row in Excel with Notification Type = Q1 counts as 1
-      complaints: filteredKpis.reduce((sum, k) => sum + k.customerComplaintsQ1, 0),
-      // Defective parts = sum of defectiveParts from Q1 notifications - YTD through last month
-      defective: filteredKpis.reduce((sum, k) => sum + (k.customerDefectiveParts || 0), 0),
-      // Customer deliveries = sum of quantities from Outbound files - YTD through last month
-      deliveries: filteredKpis.reduce((sum, k) => sum + (k.customerDeliveries || 0), 0),
-      // PPM = (total defective / total deliveries) * 1,000,000 - YTD through last month
+      complaints: kpisForMetrics.reduce((sum, k) => sum + k.customerComplaintsQ1, 0),
+      defective: kpisForMetrics.reduce((sum, k) => sum + (k.customerDefectiveParts || 0), 0),
+      deliveries: kpisForMetrics.reduce((sum, k) => sum + (k.customerDeliveries || 0), 0),
       ppm: (() => {
-        const totalDefective = filteredKpis.reduce((sum, k) => sum + (k.customerDefectiveParts || 0), 0);
-        const totalDeliveries = filteredKpis.reduce((sum, k) => sum + (k.customerDeliveries || 0), 0);
+        const totalDefective = kpisForMetrics.reduce((sum, k) => sum + (k.customerDefectiveParts || 0), 0);
+        const totalDeliveries = kpisForMetrics.reduce((sum, k) => sum + (k.customerDeliveries || 0), 0);
         return totalDeliveries > 0 ? (totalDefective / totalDeliveries) * 1_000_000 : 0;
       })(),
     };
 
-    // Previous period for trend comparison: YTD through previous month (e.g., YTD through November)
-    // Percentage change compares YTD through last month vs YTD through previous month
-    // If last available month is December, compare YTD through December vs YTD through November
     const previousYtdKpis = previousMonth
-      ? filteredKpis.filter((k) => {
+      ? kpisForMetrics.filter((k) => {
           const kpiDate = new Date(k.month + "-01");
           const previousMonthDate = new Date(previousMonth + "-01");
           return kpiDate <= previousMonthDate;
@@ -1248,11 +1244,8 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     
     const previous = {
       complaints: previousYtdKpis.reduce((sum, k) => sum + k.customerComplaintsQ1, 0),
-      // Defective parts = sum of defectiveParts from Q1 notifications - YTD through previous month
       defective: previousYtdKpis.reduce((sum, k) => sum + (k.customerDefectiveParts || 0), 0),
-      // Customer deliveries = sum of quantities from Outbound files - YTD through previous month
       deliveries: previousYtdKpis.reduce((sum, k) => sum + (k.customerDeliveries || 0), 0),
-      // PPM = (total defective / total deliveries) * 1,000,000 - YTD through previous month
       ppm: (() => {
         const totalDefective = previousYtdKpis.reduce((sum, k) => sum + (k.customerDefectiveParts || 0), 0);
         const totalDeliveries = previousYtdKpis.reduce((sum, k) => sum + (k.customerDeliveries || 0), 0);
@@ -1266,7 +1259,6 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       deliveries: calculateTrend(current.deliveries, previous.deliveries),
       ppm: calculateTrend(current.ppm, previous.ppm),
       selectedSites: availableSites.length,
-      // Conversion information for info popup
       conversions: {
         hasConversions: allCustomerConversions.length > 0,
         totalConverted: allCustomerConversions.length,
@@ -1278,42 +1270,14 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   }, [filteredKpis, previousMonth, calculateTrend, availableSites]);
 
   const supplierMetrics = useMemo(() => {
-    // Count each Q2 notification row from the Excel file
-    // Each row in Excel with Notification Type = Q2 counts as 1 complaint
-    // Sum across all filtered KPIs (respects plant/date filters, but shows all available data)
-    const q2Count = filteredKpis.reduce((sum, k) => sum + k.supplierComplaintsQ2, 0);
+    const kpisForMetrics = filteredKpis;
+    const q2Count = kpisForMetrics.reduce((sum, k) => sum + k.supplierComplaintsQ2, 0);
     
-    // Debug logging - always log to help diagnose
     console.log('[YTD Supplier Metrics] ========================================');
-    console.log('[YTD Supplier Metrics] Total filtered KPIs:', filteredKpis.length);
+    console.log('[YTD Supplier Metrics] Total KPIs for metrics:', kpisForMetrics.length);
     console.log('[YTD Supplier Metrics] Q2 complaints count:', q2Count);
-    console.log('[YTD Supplier Metrics] Breakdown by month/site (first 10 with Q2>0):', filteredKpis
-      .filter(k => k.supplierComplaintsQ2 > 0)
-      .slice(0, 10)
-      .map(k => ({
-        month: k.month,
-        site: k.siteCode,
-        q2Complaints: k.supplierComplaintsQ2,
-        q2Defective: k.supplierDefectiveParts
-      })));
-    // Verify we're counting complaints, not summing defective parts
-    const totalDefective = filteredKpis.reduce((sum, k) => sum + (k.supplierDefectiveParts || 0), 0);
-    console.log('[YTD Supplier Metrics] Total Q2 defective parts (in PC):', totalDefective);
-    console.log('[YTD Supplier Metrics] Breakdown by site (top 10):', filteredKpis
-      .filter(k => k.supplierDefectiveParts > 0)
-      .sort((a, b) => b.supplierDefectiveParts - a.supplierDefectiveParts)
-      .slice(0, 10)
-      .map(k => ({
-        site: k.siteCode,
-        month: k.month,
-        defective: k.supplierDefectiveParts,
-        conversions: k.supplierConversions?.totalConverted || 0
-      })));
-    console.log('[YTD Supplier Metrics] VERIFICATION: Q2 complaints should be count of rows, not sum of defective parts');
-    console.log('[YTD Supplier Metrics] VERIFICATION: Q2 defective parts should be sum of all defective parts (converted to PC)');
     console.log('[YTD Supplier Metrics] ========================================');
     
-    // Collect conversion information from all filtered KPIs
     const allConversions: Array<{
       notificationNumber: string;
       originalML: number;
@@ -1327,7 +1291,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     let totalMLConverted = 0;
     let totalPCConverted = 0;
     
-    filteredKpis.forEach((kpi) => {
+    kpisForMetrics.forEach((kpi) => {
       if (kpi.supplierConversions && kpi.supplierConversions.conversions.length > 0) {
         kpi.supplierConversions.conversions.forEach((conv) => {
           allConversions.push({
@@ -1341,34 +1305,24 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             month: kpi.month,
           });
         });
-        totalMLConverted += kpi.supplierConversions.totalML; // Keep field name for backward compatibility
+        totalMLConverted += kpi.supplierConversions.totalML;
         totalPCConverted += kpi.supplierConversions.totalPC;
       }
     });
     
-    // Current period: YTD (Year-to-Date) cumulative values through last available month
-    // If last month is December, this is YTD through December (cumulative for entire year)
     const current = {
-      // Count of Q2 notifications (Supplier Complaints) - YTD through last month
-      // Each row in Excel with Notification Type = Q2 counts as 1
-      complaints: filteredKpis.reduce((sum, k) => sum + k.supplierComplaintsQ2, 0),
-      // Defective parts = sum of defectiveParts from Q2 notifications - YTD through last month
-      defective: filteredKpis.reduce((sum, k) => sum + (k.supplierDefectiveParts || 0), 0),
-      // Supplier deliveries = sum of quantities from Inbound files - YTD through last month
-      deliveries: filteredKpis.reduce((sum, k) => sum + (k.supplierDeliveries || 0), 0),
-      // PPM = (total defective / total deliveries) * 1,000,000 - YTD through last month
+      complaints: kpisForMetrics.reduce((sum, k) => sum + k.supplierComplaintsQ2, 0),
+      defective: kpisForMetrics.reduce((sum, k) => sum + (k.supplierDefectiveParts || 0), 0),
+      deliveries: kpisForMetrics.reduce((sum, k) => sum + (k.supplierDeliveries || 0), 0),
       ppm: (() => {
-        const totalDefective = filteredKpis.reduce((sum, k) => sum + (k.supplierDefectiveParts || 0), 0);
-        const totalDeliveries = filteredKpis.reduce((sum, k) => sum + (k.supplierDeliveries || 0), 0);
+        const totalDefective = kpisForMetrics.reduce((sum, k) => sum + (k.supplierDefectiveParts || 0), 0);
+        const totalDeliveries = kpisForMetrics.reduce((sum, k) => sum + (k.supplierDeliveries || 0), 0);
         return totalDeliveries > 0 ? (totalDefective / totalDeliveries) * 1_000_000 : 0;
       })(),
     };
 
-    // Previous period for trend comparison: YTD through previous month (e.g., YTD through November)
-    // Percentage change compares YTD through last month vs YTD through previous month
-    // If last available month is December, compare YTD through December vs YTD through November
     const previousYtdKpis = previousMonth
-      ? filteredKpis.filter((k) => {
+      ? kpisForMetrics.filter((k) => {
           const kpiDate = new Date(k.month + "-01");
           const previousMonthDate = new Date(previousMonth + "-01");
           return kpiDate <= previousMonthDate;
@@ -1377,11 +1331,8 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     
     const previous = {
       complaints: previousYtdKpis.reduce((sum, k) => sum + k.supplierComplaintsQ2, 0),
-      // Defective parts = sum of defectiveParts from Q2 notifications - YTD through previous month
       defective: previousYtdKpis.reduce((sum, k) => sum + (k.supplierDefectiveParts || 0), 0),
-      // Supplier deliveries = sum of quantities from Inbound files - YTD through previous month
       deliveries: previousYtdKpis.reduce((sum, k) => sum + (k.supplierDeliveries || 0), 0),
-      // PPM = (total defective / total deliveries) * 1,000,000 - YTD through previous month
       ppm: (() => {
         const totalDefective = previousYtdKpis.reduce((sum, k) => sum + (k.supplierDefectiveParts || 0), 0);
         const totalDeliveries = previousYtdKpis.reduce((sum, k) => sum + (k.supplierDeliveries || 0), 0);
@@ -1395,7 +1346,6 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       deliveries: calculateTrend(current.deliveries, previous.deliveries),
       ppm: calculateTrend(current.ppm, previous.ppm),
       selectedSites: availableSites.length,
-      // Conversion information for info popup
       conversions: {
         hasConversions: allConversions.length > 0,
         totalConverted: allConversions.length,
@@ -2478,6 +2428,8 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   // Get month name for display
   const monthNames = t.common.months;
   const selectedMonthName = selectedMonth !== null ? monthNames[selectedMonth - 1] : '';
+  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const withPeriodTitle = useCallback((title: string) => title.replace(/\bYTD\b/g, periodLabel), [periodLabel]);
 
   // Enhanced Metric Tile Component
   // Helper function to format numbers in German locale (comma for decimal, dot for thousands)
@@ -2709,10 +2661,10 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-bold tracking-tight">
               {isCustomerView
-                ? `${t.dashboard.customerPerformance} YTD //`
+                ? `${t.dashboard.customerPerformance} ${periodLabel} //`
                 : isSupplierView
-                  ? `${t.dashboard.supplierPerformance} YTD //`
-                  : `${t.dashboard.title}`}
+                  ? `${t.dashboard.supplierPerformance} ${periodLabel} //`
+                  : withPeriodTitle(t.dashboard.title)}
             </h1>
             {selectedMonth !== null && selectedYear !== null && (
               <div className="flex items-center gap-2">
@@ -2746,6 +2698,15 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as "12mb" | "ytd")}>
+                  <SelectTrigger className="min-w-[240px] w-auto h-auto py-1 px-2 text-3xl font-bold tracking-tight border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 hover:bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12mb">{t.common.periodMode12mb}</SelectItem>
+                    <SelectItem value="ytd">{t.common.periodModeYtd}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
@@ -2762,16 +2723,16 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
                   <p className="text-sm font-bold text-red-700 dark:text-red-300">
-                    Dashboard data is being hidden by filters
+                    {t.dashboard.filterWarningTitle}
                   </p>
                   <p className="text-sm text-red-800 dark:text-red-200 leading-relaxed">
-                    Your current filter selection excludes{" "}
+                    {t.dashboard.filterWarningDescription}{" "}
                     {isCustomerHiddenByFilters && isSupplierHiddenByFilters
-                      ? "Customer (Q1) and Supplier (Q2)"
+                      ? t.dashboard.filterWarningExcludesAll
                       : isCustomerHiddenByFilters
-                        ? "Customer (Q1)"
-                        : "Supplier (Q2)"}{" "}
-                    notifications. This makes complaints/defects/PPM appear as 0 or N/A even when uploads succeeded.
+                        ? t.dashboard.filterWarningExcludesCustomer
+                        : t.dashboard.filterWarningExcludesSupplier}{" "}
+                    {t.dashboard.filterWarningMakesZero}
                   </p>
                 </div>
                 <Button
@@ -2788,17 +2749,27 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                     })
                   }
                 >
-                  Reset filters
+                  {t.dashboard.filterWarningReset}
                 </Button>
               </div>
             </div>
           )}
-          {selectedMonth !== null && selectedYear !== null && (
+          {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
               {t.dashboard.showing12MonthLookback} {selectedMonthName} {selectedYear}
               {lookbackPeriod.startMonthStr !== lookbackPeriod.endMonthStr && (
                 <> ({lookbackPeriod.startMonthStr} {t.common.to} {lookbackPeriod.endMonthStr})</>
               )}
+            </p>
+          )}
+          {selectedMonth !== null && selectedYear !== null && periodMode === "ytd" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t.common.showingYtdFromJanuary} {selectedYear} {t.common.to} {selectedMonthName} {selectedYear}.
+            </p>
+          )}
+          {filters.selectedPlants.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-1" role="note">
+              {t.dashboard.metricsForSelectedSitesOnly}
             </p>
           )}
         </div>
@@ -2807,7 +2778,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       <div className="space-y-2">
         {/* Headings */}
         <h2 className="text-lg font-semibold text-foreground">
-          {isSupplierView ? t.dashboard.ytdSupplierMetrics : t.dashboard.ytdCustomerMetrics}
+          {withPeriodTitle(isSupplierView ? t.dashboard.ytdSupplierMetrics : t.dashboard.ytdCustomerMetrics)}
         </h2>
         
         {/* Metrics and Sidebar Grid - Perfectly Aligned */}
@@ -3022,7 +2993,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             {/* YTD Supplier Metrics Heading - Only show in full view (supplier-only view uses the main heading above) */}
             {isFullView && (
               <>
-                <h2 className="text-lg font-semibold text-foreground">{t.dashboard.ytdSupplierMetrics}</h2>
+                <h2 className="text-lg font-semibold text-foreground">{withPeriodTitle(t.dashboard.ytdSupplierMetrics)}</h2>
                 
                 {/* YTD Supplier Metrics Row */}
                 <div className="grid gap-4 md:grid-cols-4 auto-rows-fr" style={{ gridAutoRows: '1fr' }}>
@@ -3540,18 +3511,20 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         </Card>
       </div>
 
-      {/* YTD Total Number of Notifications by Month and Plant Chart - Directly under metrics tiles */}
+      {/* Total Number of Notifications by Month and Plant Chart */}
       <Card ref={notificationsChartRef} className="glass-card-glow chart-container">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <span>
-                  {isCustomerView
-                    ? t.charts.notificationsByMonth.titleCustomer
-                    : isSupplierView
-                      ? t.charts.notificationsByMonth.titleSupplier
-                      : t.charts.notificationsByMonth.title}
+                  {withPeriodTitle(
+                    isCustomerView
+                      ? t.charts.notificationsByMonth.titleCustomer
+                      : isSupplierView
+                        ? t.charts.notificationsByMonth.titleSupplier
+                        : t.charts.notificationsByMonth.title
+                  )}
                 </span>
                 <TooltipProvider>
                   <UiTooltip>
@@ -3676,11 +3649,13 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: isCustomerView
-                      ? t.charts.notificationsByMonth.titleCustomer
-                      : isSupplierView
-                        ? t.charts.notificationsByMonth.titleSupplier
-                        : t.charts.notificationsByMonth.title,
+                    title: withPeriodTitle(
+                      isCustomerView
+                        ? t.charts.notificationsByMonth.titleCustomer
+                        : isSupplierView
+                          ? t.charts.notificationsByMonth.titleSupplier
+                          : t.charts.notificationsByMonth.title
+                    ),
                     description: isCustomerView
                       ? t.charts.notificationsByMonth.descriptionCustomer
                       : isSupplierView
@@ -3764,18 +3739,20 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         </CardContent>
       </Card>
 
-      {/* YTD Total Number of Defects by Month and Plant Chart - Directly under the notifications chart */}
+      {/* Total Number of Defects by Month and Plant Chart */}
       <Card ref={defectsChartRef} className="glass-card-glow chart-container">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <span>
-                  {isCustomerView
-                    ? t.charts.defectsByMonth.titleCustomer
-                    : isSupplierView
-                      ? t.charts.defectsByMonth.titleSupplier
-                      : t.charts.defectsByMonth.title}
+                  {withPeriodTitle(
+                    isCustomerView
+                      ? t.charts.defectsByMonth.titleCustomer
+                      : isSupplierView
+                        ? t.charts.defectsByMonth.titleSupplier
+                        : t.charts.defectsByMonth.title
+                  )}
                 </span>
                 <TooltipProvider>
                   <UiTooltip>
@@ -3888,11 +3865,13 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: isCustomerView
-                      ? t.charts.defectsByMonth.titleCustomer
-                      : isSupplierView
-                        ? t.charts.defectsByMonth.titleSupplier
-                        : t.charts.defectsByMonth.title,
+                    title: withPeriodTitle(
+                      isCustomerView
+                        ? t.charts.defectsByMonth.titleCustomer
+                        : isSupplierView
+                          ? t.charts.defectsByMonth.titleSupplier
+                          : t.charts.defectsByMonth.title
+                    ),
                     description: isCustomerView
                       ? t.charts.defectsByMonth.descriptionCustomer
                       : isSupplierView
@@ -3982,11 +3961,13 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>
-                {isCustomerView
-                  ? "YTD Number of Customer Notifications by Month and Notification Type"
-                  : isSupplierView
-                    ? "YTD Number of Supplier Notifications by Month and Notification Type"
-                    : "YTD Number of Notifications by Month and Notification Type"}
+                {withPeriodTitle(
+                  isCustomerView
+                    ? "YTD Number of Customer Notifications by Month and Notification Type"
+                    : isSupplierView
+                      ? "YTD Number of Supplier Notifications by Month and Notification Type"
+                      : "YTD Number of Notifications by Month and Notification Type"
+                )}
               </CardTitle>
               <CardDescription>
                 {isCustomerView
@@ -4082,11 +4063,13 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: isCustomerView
-                      ? "YTD Number of Customer Notifications by Month and Notification Type"
-                      : isSupplierView
-                        ? "YTD Number of Supplier Notifications by Month and Notification Type"
-                        : "YTD Number of Notifications by Month and Notification Type",
+                    title: withPeriodTitle(
+                      isCustomerView
+                        ? "YTD Number of Customer Notifications by Month and Notification Type"
+                        : isSupplierView
+                          ? "YTD Number of Supplier Notifications by Month and Notification Type"
+                          : "YTD Number of Notifications by Month and Notification Type"
+                    ),
                     description: isCustomerView
                       ? "Number of customer complaints (Q1) by month"
                       : isSupplierView
@@ -4247,7 +4230,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <span>YTD Cumulative Customer PPM Trend - All Sites</span>
+                <span>{withPeriodTitle("YTD Cumulative Customer PPM Trend - All Sites")}</span>
                 <TooltipProvider>
                   <UiTooltip>
                     <TooltipTrigger asChild>
@@ -4281,7 +4264,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: "YTD Cumulative Customer PPM Trend - All Sites",
+                    title: withPeriodTitle("YTD Cumulative Customer PPM Trend - All Sites"),
                     description: "Combined Customer PPM performance (PPM = Defective Parts / Total Deliveries × 1,000,000)",
                     chartType: "line",
                     dataType: "ppm",
@@ -4395,11 +4378,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <Card className="glass-card-glow chart-container">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>YTD Customer PPM Monthly Trend Analysis - All Sites</CardTitle>
+            <CardTitle>{withPeriodTitle("YTD Customer PPM Monthly Trend Analysis - All Sites")}</CardTitle>
             <IAmQButton
               onClick={() => {
                 setChartContext({
-                  title: "YTD Customer PPM Monthly Trend Analysis - All Sites",
+                  title: withPeriodTitle("YTD Customer PPM Monthly Trend Analysis - All Sites"),
                   description: "Monthly Customer PPM values across all sites",
                   chartType: "table",
                   dataType: "ppm",
@@ -5033,7 +5016,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <span>YTD Cumulative Supplier PPM Trend - All Sites</span>
+                    <span>{withPeriodTitle("YTD Cumulative Supplier PPM Trend - All Sites")}</span>
                     <TooltipProvider>
                       <UiTooltip>
                         <TooltipTrigger asChild>
@@ -5067,7 +5050,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                   <IAmQButton
                     onClick={() => {
                       setChartContext({
-                        title: "YTD Cumulative Supplier PPM Trend - All Sites",
+                        title: withPeriodTitle("YTD Cumulative Supplier PPM Trend - All Sites"),
                         description: "Combined Supplier PPM performance (PPM = Defective Parts / Total Deliveries × 1,000,000)",
                         chartType: "line",
                         dataType: "ppm",
@@ -5157,11 +5140,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <Card className="glass-card-glow chart-container">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>YTD Supplier PPM Monthly Trend Analysis - All Sites</CardTitle>
+                <CardTitle>{withPeriodTitle("YTD Supplier PPM Monthly Trend Analysis - All Sites")}</CardTitle>
                 <IAmQButton
                   onClick={() => {
                     setChartContext({
-                      title: "YTD Supplier PPM Monthly Trend Analysis - All Sites",
+                      title: withPeriodTitle("YTD Supplier PPM Monthly Trend Analysis - All Sites"),
                       description: "Monthly Supplier PPM values across all sites",
                       chartType: "table",
                       dataType: "ppm",

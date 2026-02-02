@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -28,6 +28,7 @@ import { IAmQButton } from "@/components/iamq/iamq-button";
 import { IAmQChatPanel } from "@/components/iamq/iamq-chat-panel";
 import type { MonthlySiteKpi } from "@/lib/domain/types";
 import { useKpiData } from "@/lib/data/useKpiData";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getPlantColorHex, getNotificationTypeColor, getBarAnimation } from "@/lib/utils/chartColors";
 import { ExternalLink, FileSpreadsheet, Info, Package, RefreshCw } from "lucide-react";
 
@@ -146,10 +147,12 @@ function PlantLegend({
 }
 
 export function CostPoorQualityClient() {
+  const { t } = useTranslation();
   const { monthlySiteKpis: kpis } = useKpiData();
   const [plantsData, setPlantsData] = useState<PlantData[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [periodMode, setPeriodMode] = useState<"12mb" | "ytd">("12mb");
   // Use global filter hook for persistent filters across pages
   const [filters, setFilters] = useGlobalFilters();
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -185,8 +188,8 @@ export function CostPoorQualityClient() {
   const [selectedPlantForInternalChart, setSelectedPlantForInternalChart] = useState<string | null>(null);
 
   const monthNames = useMemo(
-    () => ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-    []
+    () => t.common.months,
+    [t]
   );
 
   const availableMonthsYears = useMemo(() => {
@@ -212,6 +215,12 @@ export function CostPoorQualityClient() {
       lastMonthYear: sorted.length > 0 ? sorted[sorted.length - 1] : null,
     };
   }, [kpis]);
+
+  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const withPeriodTitle = useCallback(
+    (title: string) => title.replace(/\bYTD\b/g, periodLabel),
+    [periodLabel]
+  );
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
@@ -260,11 +269,19 @@ export function CostPoorQualityClient() {
       if (!plantCode) return false;
 
       const plantOk = plantSet.size === 0 || plantSet.has(plantCode);
-      const lookbackOk = isWithinDateRange(kpi.month, lookbackPeriod.start, lookbackPeriod.end);
+      const periodOk =
+        periodMode === "12mb"
+          ? isWithinDateRange(kpi.month, lookbackPeriod.start, lookbackPeriod.end)
+          : selectedMonth !== null && selectedYear !== null
+            ? (() => {
+                const [y, m] = kpi.month.split("-").map(Number);
+                return y === selectedYear && m <= selectedMonth;
+              })()
+            : true;
       const dateOk = isWithinDateRange(kpi.month, effectiveFilters.dateFrom, effectiveFilters.dateTo);
-      return plantOk && lookbackOk && dateOk;
+      return plantOk && periodOk && dateOk;
     });
-  }, [kpis, effectiveFilters.dateFrom, effectiveFilters.dateTo, effectiveFilters.selectedPlants, allowedPlantCodes, lookbackPeriod.start, lookbackPeriod.end]);
+  }, [kpis, effectiveFilters.dateFrom, effectiveFilters.dateTo, effectiveFilters.selectedPlants, allowedPlantCodes, lookbackPeriod.start, lookbackPeriod.end, periodMode, selectedMonth, selectedYear]);
 
   const internalComplaintsTotal = useMemo(() => {
     return filteredKpis.reduce((sum, kpi) => sum + (kpi.internalComplaintsQ3 || 0), 0);
@@ -414,7 +431,9 @@ export function CostPoorQualityClient() {
       <div className="flex-1 space-y-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">Poor Quality Costs YTD //</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {withPeriodTitle("Poor Quality Costs YTD //")}
+            </h1>
             {selectedMonth !== null && selectedYear !== null && (
               <div className="flex items-center gap-2">
                 <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(Number(v))}>
@@ -441,11 +460,20 @@ export function CostPoorQualityClient() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as "12mb" | "ytd")}>
+                  <SelectTrigger className="min-w-[240px] w-auto h-auto py-1 px-2 text-3xl font-bold tracking-tight border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 hover:bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12mb">{t.common.periodMode12mb}</SelectItem>
+                    <SelectItem value="ytd">{t.common.periodModeYtd}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
           <p className="text-muted-foreground mt-2">Cost Performance • Poor Quality Costs</p>
-          {selectedMonth !== null && selectedYear !== null && (
+          {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
               Showing 12-month lookback from {monthNames[selectedMonth - 1]} {selectedYear}
               {lookbackPeriod.startMonthStr !== lookbackPeriod.endMonthStr && (
@@ -453,11 +481,16 @@ export function CostPoorQualityClient() {
               )}
             </p>
           )}
+          {selectedMonth !== null && selectedYear !== null && periodMode === "ytd" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t.common.showingYtdFromJanuary} {selectedYear} {t.common.to} {monthNames[selectedMonth - 1]} {selectedYear}.
+            </p>
+          )}
         </div>
 
         {/* Metrics + AI card */}
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">YTD Cost Metrics</h2>
+          <h2 className="text-lg font-semibold text-foreground">{withPeriodTitle("YTD Cost Metrics")}</h2>
           <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:items-stretch">
             <div className="space-y-6">
               <div className="grid gap-4 auto-rows-fr md:grid-cols-3" style={{ gridAutoRows: "1fr" }}>
@@ -580,7 +613,7 @@ export function CostPoorQualityClient() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>YTD Total Number of Internal Notifications by Month and Plant</CardTitle>
+                <CardTitle>{withPeriodTitle("YTD Total Number of Internal Notifications by Month and Plant")}</CardTitle>
                 <CardDescription>Internal complaints (Q3) by month and plant (fixed filter)</CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -598,7 +631,7 @@ export function CostPoorQualityClient() {
                 <IAmQButton
                   onClick={() => {
                     setChartContext({
-                      title: "YTD Total Number of Internal Notifications by Month and Plant",
+                      title: withPeriodTitle("YTD Total Number of Internal Notifications by Month and Plant"),
                       description: "Internal complaints (Q3) by month and plant (fixed filter)",
                       chartType: "bar",
                       dataType: "notifications",
@@ -679,13 +712,13 @@ export function CostPoorQualityClient() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>YTD Total Number of Internal Defects by Month and Plant</CardTitle>
+                <CardTitle>{withPeriodTitle("YTD Total Number of Internal Defects by Month and Plant")}</CardTitle>
                 <CardDescription>Defective parts from internal complaints (Q3) by month and plant</CardDescription>
               </div>
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: "YTD Total Number of Internal Defects by Month and Plant",
+                    title: withPeriodTitle("YTD Total Number of Internal Defects by Month and Plant"),
                     description: "Defective parts from internal complaints (Q3) by month and plant",
                     chartType: "bar",
                     dataType: "defects",
@@ -762,13 +795,13 @@ export function CostPoorQualityClient() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>YTD Number of Internal Notifications by Month and Notification Type</CardTitle>
+                <CardTitle>{withPeriodTitle("YTD Number of Internal Notifications by Month and Notification Type")}</CardTitle>
                 <CardDescription>Fixed to Internal Complaints (Q3)</CardDescription>
               </div>
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: "YTD Number of Internal Notifications by Month and Notification Type",
+                    title: withPeriodTitle("YTD Number of Internal Notifications by Month and Notification Type"),
                     description: "Fixed to Internal Complaints (Q3)",
                     chartType: "bar",
                     dataType: "notifications",
@@ -832,13 +865,13 @@ export function CostPoorQualityClient() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>{`YTD ${title} by Month and Plant`}</CardTitle>
+                      <CardTitle>{withPeriodTitle(`YTD ${title} by Month and Plant`)}</CardTitle>
                       <CardDescription>No data connected yet</CardDescription>
                     </div>
                     <IAmQButton
                       onClick={() => {
                         setChartContext({
-                          title: `YTD ${title} by Month and Plant`,
+                          title: withPeriodTitle(`YTD ${title} by Month and Plant`),
                           description: "No data connected yet",
                           chartType: "bar",
                           dataType: "costs",

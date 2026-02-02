@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Download, Filter, X } from "lucide-react";
 import type { ChangeHistoryEntry } from "@/lib/data/uploadSummary";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import * as XLSX from "xlsx";
 // Format date helper (avoiding date-fns dependency)
 function formatDate(date: Date): string {
@@ -34,6 +35,7 @@ interface ChangeHistoryPanelProps {
 }
 
 export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
+  const { t } = useTranslation();
   const [filterType, setFilterType] = useState<string>("all");
   const [filterChangeType, setFilterChangeType] = useState<string>("all");
   const [filterRecordId, setFilterRecordId] = useState<string>("");
@@ -95,6 +97,29 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
     setFilterEditor("");
   };
 
+  const changeTypeLabel = (key: string): string => {
+    const map: Record<string, string> = {
+      conversion: t.upload.changeTypeConversion,
+      manual_edit: t.upload.changeTypeManualEdit,
+      correction: t.upload.changeTypeCorrection,
+      bulk_action: t.upload.changeTypeBulkAction,
+      new_entry: t.upload.changeTypeNewEntry,
+      file_upload: t.upload.changeTypeFileUpload,
+      duplicate: t.upload.changeTypeDuplicate,
+    };
+    return map[key] ?? key.replace("_", " ");
+  };
+
+  const recordTypeLabel = (key: string): string => {
+    const map: Record<string, string> = {
+      complaint: t.upload.recordTypeComplaint,
+      delivery: t.upload.recordTypeDelivery,
+      ppap: t.upload.recordTypePpap,
+      deviation: t.upload.recordTypeDeviation,
+    };
+    return map[key] ?? key.replace("_", " ");
+  };
+
   if (changes.length === 0) {
     return (
       <Card>
@@ -111,14 +136,14 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Change History</CardTitle>
+            <CardTitle>{t.upload.changeHistory}</CardTitle>
             <CardDescription>
-              Track all manual corrections and conversions made to uploaded data
+              {t.upload.historyDescription}
             </CardDescription>
           </div>
           <Button onClick={handleExport} variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
-            Export
+            {t.upload.exportButton}
           </Button>
         </div>
       </CardHeader>
@@ -127,53 +152,54 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
         <div className="flex flex-wrap gap-4 items-end p-4 bg-muted/30 rounded-md">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Filters:</span>
+            <span className="text-sm font-medium">{t.upload.filtersLabel}</span>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Record Type</Label>
+            <Label className="text-xs">{t.upload.recordTypeLabel}</Label>
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="complaint">Complaints</SelectItem>
-                <SelectItem value="delivery">Deliveries</SelectItem>
-                <SelectItem value="ppap">PPAP</SelectItem>
-                <SelectItem value="deviation">Deviations</SelectItem>
+                <SelectItem value="all">{t.upload.recordTypeAll}</SelectItem>
+                <SelectItem value="complaint">{t.upload.recordTypeComplaint}</SelectItem>
+                <SelectItem value="delivery">{t.upload.recordTypeDelivery}</SelectItem>
+                <SelectItem value="ppap">{t.upload.recordTypePpap}</SelectItem>
+                <SelectItem value="deviation">{t.upload.recordTypeDeviation}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Change Type</Label>
+            <Label className="text-xs">{t.upload.changeTypeLabel}</Label>
             <Select value={filterChangeType} onValueChange={setFilterChangeType}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Changes</SelectItem>
-                <SelectItem value="conversion">Conversion</SelectItem>
-                <SelectItem value="manual_edit">Manual Edit</SelectItem>
-                <SelectItem value="correction">Correction</SelectItem>
-                <SelectItem value="bulk_action">Bulk Action</SelectItem>
-                <SelectItem value="new_entry">New Entry</SelectItem>
-                <SelectItem value="file_upload">File Upload</SelectItem>
+                <SelectItem value="all">{t.upload.changeTypeAll}</SelectItem>
+                <SelectItem value="conversion">{t.upload.changeTypeConversion}</SelectItem>
+                <SelectItem value="manual_edit">{t.upload.changeTypeManualEdit}</SelectItem>
+                <SelectItem value="correction">{t.upload.changeTypeCorrection}</SelectItem>
+                <SelectItem value="bulk_action">{t.upload.changeTypeBulkAction}</SelectItem>
+                <SelectItem value="new_entry">{t.upload.changeTypeNewEntry}</SelectItem>
+                <SelectItem value="file_upload">{t.upload.changeTypeFileUpload}</SelectItem>
+                <SelectItem value="duplicate">{t.upload.changeTypeDuplicate}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Record ID</Label>
+            <Label className="text-xs">{t.upload.recordIdLabel}</Label>
             <Input
-              placeholder="Filter by ID..."
+              placeholder={t.upload.filterByIdPlaceholder}
               value={filterRecordId}
               onChange={(e) => setFilterRecordId(e.target.value)}
               className="w-[150px]"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Editor</Label>
+            <Label className="text-xs">{t.upload.recordedBy}</Label>
             <Input
-              placeholder="Filter by editor..."
+              placeholder={t.upload.filterByEditorPlaceholder}
               value={filterEditor}
               onChange={(e) => setFilterEditor(e.target.value)}
               className="w-[120px]"
@@ -181,14 +207,19 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
           </div>
           <Button onClick={clearFilters} variant="ghost" size="sm">
             <X className="h-4 w-4 mr-2" />
-            Clear
+            {t.upload.clearFiltersButton}
           </Button>
         </div>
 
         {/* Changes List */}
         <div className="space-y-3">
           <div className="text-sm text-muted-foreground">
-            Showing {filteredChanges.length} of {changes.length} change{changes.length !== 1 ? "s" : ""}
+            {t.upload.showingXOfYChanges
+              .replace("{count}", String(filteredChanges.length))
+              .replace("{total}", String(changes.length))
+              .replace(" (s)", changes.length !== 1 ? "s" : "")
+              .replace("(en)", changes.length !== 1 ? "en" : "")
+              .replace("/he", changes.length !== 1 ? "he" : "")}
           </div>
           {filteredChanges.map((change) => (
             <div
@@ -198,7 +229,7 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <Badge variant="outline">{change.recordType.replace("_", " ")}</Badge>
+                    <Badge variant="outline">{recordTypeLabel(change.recordType)}</Badge>
                     <Badge
                       variant={
                         change.changeType === "conversion" || change.changeType === "new_entry" || change.changeType === "file_upload"
@@ -208,7 +239,7 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
                           : "destructive"
                       }
                     >
-                      {change.changeType.replace("_", " ")}
+                      {changeTypeLabel(change.changeType)}
                     </Badge>
                     <span className="text-xs text-muted-foreground font-medium">
                       {formatDate(new Date(change.timestamp))}
@@ -216,16 +247,16 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
                   </div>
                   <div className="text-sm space-y-1">
                     <div>
-                      <span className="font-medium">Recorded By:</span>{" "}
+                      <span className="font-medium">{t.upload.recordedBy}</span>{" "}
                       <span className="font-semibold text-foreground">{change.editor}</span>
                     </div>
                     <div>
-                      <span className="font-medium">Record ID:</span>{" "}
+                      <span className="font-medium">{t.upload.recordIdLabel}</span>{" "}
                       <span className="font-mono text-xs">{change.recordId}</span>
                     </div>
                     {change.field !== "all" && (
                       <div>
-                        <span className="font-medium">Field:</span> {change.field}
+                        <span className="font-medium">{t.upload.fieldLabel}</span> {change.field}
                       </div>
                     )}
                     {change.field === "all" ? (
@@ -261,7 +292,7 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
                     )}
                     {change.reason && (
                       <div>
-                        <span className="font-medium">Reason:</span> {change.reason}
+                        <span className="font-medium">{t.upload.reasonLabel}</span> {change.reason}
                       </div>
                     )}
                     {change.onePagerLink && (
@@ -283,16 +314,16 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
 
               {/* Affected Metrics & Visualizations */}
               <div className="pt-2 border-t space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">Impact:</div>
+                <div className="text-xs font-medium text-muted-foreground">{t.upload.impactLabel}</div>
                 {change.affectedMetrics.metrics.length > 0 && (
                   <div className="text-xs">
-                    <span className="font-medium">Metrics:</span>{" "}
+                    <span className="font-medium">{t.upload.metricsLabel}</span>{" "}
                     {change.affectedMetrics.metrics.join(", ")}
                   </div>
                 )}
                 {change.affectedMetrics.visualizations.length > 0 && (
                   <div className="text-xs">
-                    <span className="font-medium">Visualizations:</span>{" "}
+                    <span className="font-medium">{t.upload.visualizationsLabel}</span>{" "}
                     {change.affectedMetrics.visualizations.slice(0, 3).join(", ")}
                     {change.affectedMetrics.visualizations.length > 3 && (
                       <span className="text-muted-foreground">
@@ -304,7 +335,7 @@ export function ChangeHistoryPanel({ changes }: ChangeHistoryPanelProps) {
                 )}
                 {change.affectedMetrics.pages.length > 0 && (
                   <div className="text-xs">
-                    <span className="font-medium">Pages:</span>{" "}
+                    <span className="font-medium">{t.upload.pagesLabel}</span>{" "}
                     {change.affectedMetrics.pages.join(", ")}
                   </div>
                 )}

@@ -1,0 +1,48 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Complaint model - core domain entity
+// Supports multi-user/tenant via userId/tenantId (stubbed for now)
+model Complaint {
+  id                  String   @id
+  notificationNumber  String
+  notificationType    String   // "Q1" | "Q2" | "Q3" | "D1" | "D2" | "D3" | "P1" | "P2" | "P3" | "Other"
+  category            String   // NotificationCategory enum
+  plant               String
+  siteCode            String
+  siteName            String?
+  createdOn           DateTime // Original complaint creation date
+  defectiveParts     Int
+  source              String   // "SAP_S4" | "Manual" | "Import"
+  
+  // Unit conversion fields (for supplier complaints - Q2)
+  unitOfMeasure       String?
+  materialDescription String?
+  materialNumber      String?
+  conversionJson      String?  // JSON stringified UnitConversion object
+  
+  // Multi-user/tenant support (stubbed for now)
+  userId              String?
+  tenantId            String?
+  
+  // Metadata
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Indexes for common queries
+  @@index([notificationNumber])
+  @@index([plant])
+  @@index([siteCode])
+  @@index([notificationType])
+  @@index([createdOn])
+  @@index([userId, tenantId])
+  @@map("complaints")
+}

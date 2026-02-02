@@ -79,6 +79,7 @@ export function PPAPsClient() {
   const [selectedPlantForStatusChart, setSelectedPlantForStatusChart] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [periodMode, setPeriodMode] = useState<"12mb" | "ytd">("12mb");
 
   // AI Summary state (same behavior as Dashboard AI Summary)
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -169,6 +170,12 @@ export function PPAPsClient() {
     };
   }, [ppaps]);
 
+  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const withPeriodTitle = useCallback(
+    (title: string) => title.replace(/\bYTD\b/g, periodLabel),
+    [periodLabel]
+  );
+
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
     if (availableMonthsYears.lastMonthYear) {
@@ -210,16 +217,21 @@ export function PPAPsClient() {
       const plantOk = plantSet.size === 0 || plantSet.has(site);
 
       const created = p.createdOn instanceof Date ? p.createdOn : new Date(p.createdOn);
-      // Apply 12-month lookback based on selected Month/Year (similar to dashboard)
-      const lookbackStart = new Date(lookbackPeriod.start.getFullYear(), lookbackPeriod.start.getMonth(), 1);
-      const lookbackEnd = new Date(lookbackPeriod.end.getFullYear(), lookbackPeriod.end.getMonth() + 1, 0, 23, 59, 59, 999);
-      if (created < lookbackStart || created > lookbackEnd) return false;
+      if (periodMode === "12mb") {
+        const lookbackStart = new Date(lookbackPeriod.start.getFullYear(), lookbackPeriod.start.getMonth(), 1);
+        const lookbackEnd = new Date(lookbackPeriod.end.getFullYear(), lookbackPeriod.end.getMonth() + 1, 0, 23, 59, 59, 999);
+        if (created < lookbackStart || created > lookbackEnd) return false;
+      } else if (selectedMonth !== null && selectedYear !== null) {
+        const year = created.getFullYear();
+        const month = created.getMonth() + 1;
+        if (year !== selectedYear || month > selectedMonth) return false;
+      }
       if (filters.dateFrom && created < filters.dateFrom) return false;
       if (filters.dateTo && created > filters.dateTo) return false;
 
       return plantOk;
     });
-  }, [ppaps, filters.selectedPlants, filters.dateFrom, filters.dateTo, lookbackPeriod.start, lookbackPeriod.end]);
+  }, [ppaps, filters.selectedPlants, filters.dateFrom, filters.dateTo, lookbackPeriod.start, lookbackPeriod.end, periodMode, selectedMonth, selectedYear]);
 
   const totalPNotifications = filteredPpaps.length;
   const inProgress = filteredPpaps.filter((p) => p.status === "In Progress" || p.status === "Pending").length;
@@ -477,7 +489,9 @@ export function PPAPsClient() {
       <div className="flex-1 space-y-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">PPAPs Overview YTD //</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {withPeriodTitle("PPAPs Overview YTD //")}
+            </h1>
             {selectedMonth !== null && selectedYear !== null && (
               <div className="flex items-center gap-2">
                 <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(Number(v))}>
@@ -504,11 +518,20 @@ export function PPAPsClient() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as "12mb" | "ytd")}>
+                  <SelectTrigger className="min-w-[240px] w-auto h-auto py-1 px-2 text-3xl font-bold tracking-tight border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 hover:bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12mb">{t.common.periodMode12mb}</SelectItem>
+                    <SelectItem value="ytd">{t.common.periodModeYtd}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
           <p className="text-muted-foreground mt-2">Internal Performance • PPAPs Overview</p>
-          {selectedMonth !== null && selectedYear !== null && (
+          {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
               Showing 12-month lookback from {monthNames[selectedMonth - 1]} {selectedYear}
               {lookbackPeriod.startMonthStr !== lookbackPeriod.endMonthStr && (
@@ -516,10 +539,15 @@ export function PPAPsClient() {
               )}
             </p>
           )}
+          {selectedMonth !== null && selectedYear !== null && periodMode === "ytd" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t.common.showingYtdFromJanuary} {selectedYear} {t.common.to} {monthNames[selectedMonth - 1]} {selectedYear}.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">YTD PPAP Metrics</h2>
+          <h2 className="text-lg font-semibold text-foreground">{withPeriodTitle("YTD PPAP Metrics")}</h2>
           <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-stretch">
             {/* Metrics stacked */}
             <div className="space-y-4">
@@ -710,13 +738,13 @@ export function PPAPsClient() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>YTD P Notifications by Month and Plant</CardTitle>
+                  <CardTitle>{withPeriodTitle("YTD P Notifications by Month and Plant")}</CardTitle>
                   <CardDescription>Number of PPAP notifications by month and plant (stacked)</CardDescription>
                 </div>
                 <IAmQButton
                   onClick={() => {
                     setChartContext({
-                      title: "YTD P Notifications by Month and Plant",
+                      title: withPeriodTitle("YTD P Notifications by Month and Plant"),
                       description: "Number of PPAP notifications by month and plant (stacked)",
                       chartType: "bar",
                       dataType: "ppaps",
@@ -791,7 +819,7 @@ export function PPAPsClient() {
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle>YTD P Notifications Closed vs. In Progress by Month and Plant</CardTitle>
+                  <CardTitle>{withPeriodTitle("YTD P Notifications Closed vs. In Progress by Month and Plant")}</CardTitle>
                   <CardDescription>
                     {selectedPlantForStatusChart
                       ? `Closed vs. In Progress for ${formatPlantLabel(selectedPlantForStatusChart)}`
@@ -806,7 +834,7 @@ export function PPAPsClient() {
                 <IAmQButton
                   onClick={() => {
                     setChartContext({
-                      title: "YTD P Notifications Closed vs. In Progress by Month and Plant",
+                      title: withPeriodTitle("YTD P Notifications Closed vs. In Progress by Month and Plant"),
                       description: selectedPlantForStatusChart
                         ? `Closed vs. In Progress for ${formatPlantLabel(selectedPlantForStatusChart)}`
                         : "Closed vs. In Progress across all selected plants",

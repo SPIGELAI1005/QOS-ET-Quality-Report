@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { IAmQButton } from "@/components/iamq/iamq-button";
 import { IAmQChatPanel } from "@/components/iamq/iamq-chat-panel";
 import type { MonthlySiteKpi } from "@/lib/domain/types";
 import { useKpiData } from "@/lib/data/useKpiData";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { FileSpreadsheet, Info, Package } from "lucide-react";
 import {
   Select,
@@ -20,9 +21,11 @@ import {
 } from "@/components/ui/select";
 
 export function WarrantiesCostsClient() {
+  const { t } = useTranslation();
   const { monthlySiteKpis: kpis } = useKpiData();
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [periodMode, setPeriodMode] = useState<"12mb" | "ytd">("12mb");
   // Use global filter hook for persistent filters across pages
   const [filters, setFilters] = useGlobalFilters();
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -36,8 +39,8 @@ export function WarrantiesCostsClient() {
   } | undefined>(undefined);
 
   const monthNames = useMemo(
-    () => ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-    []
+    () => t.common.months,
+    [t]
   );
 
   const availableMonthsYears = useMemo(() => {
@@ -58,6 +61,12 @@ export function WarrantiesCostsClient() {
       lastMonthYear: sorted.length > 0 ? sorted[sorted.length - 1] : null,
     };
   }, [kpis]);
+
+  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const withPeriodTitle = useCallback(
+    (title: string) => title.replace(/\bYTD\b/g, periodLabel),
+    [periodLabel]
+  );
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
@@ -104,7 +113,9 @@ export function WarrantiesCostsClient() {
       <div className="flex-1 space-y-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">Warranty Costs YTD //</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {withPeriodTitle("Warranty Costs YTD //")}
+            </h1>
             {selectedMonth !== null && selectedYear !== null && (
               <div className="flex items-center gap-2">
                 <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(Number(v))}>
@@ -131,11 +142,20 @@ export function WarrantiesCostsClient() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as "12mb" | "ytd")}>
+                  <SelectTrigger className="min-w-[240px] w-auto h-auto py-1 px-2 text-3xl font-bold tracking-tight border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 hover:bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12mb">12 Months Back (12MB)</SelectItem>
+                    <SelectItem value="ytd">Year to Date (YTD)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
           <p className="text-muted-foreground mt-2">Cost Performance • Warranty Costs</p>
-          {selectedMonth !== null && selectedYear !== null && (
+          {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
               Showing 12-month lookback from {monthNames[selectedMonth - 1]} {selectedYear}
               {lookbackPeriod.startMonthStr !== lookbackPeriod.endMonthStr && (
@@ -143,11 +163,16 @@ export function WarrantiesCostsClient() {
               )}
             </p>
           )}
+          {selectedMonth !== null && selectedYear !== null && periodMode === "ytd" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t.common.showingYtdFromJanuary} {selectedYear} {t.common.to} {monthNames[selectedMonth - 1]} {selectedYear}.
+            </p>
+          )}
         </div>
 
         {/* Metrics + (placeholder) AI card */}
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">YTD Warranty Metrics</h2>
+          <h2 className="text-lg font-semibold text-foreground">{withPeriodTitle("YTD Warranty Metrics")}</h2>
           <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:items-stretch">
             <div className="space-y-6">
               <div className="grid gap-4 auto-rows-fr md:grid-cols-3" style={{ gridAutoRows: "1fr" }}>
@@ -225,13 +250,13 @@ export function WarrantiesCostsClient() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>{`YTD ${title} by Month and Plant`}</CardTitle>
+                      <CardTitle>{withPeriodTitle(`YTD ${title} by Month and Plant`)}</CardTitle>
                       <CardDescription>No data connected yet</CardDescription>
                     </div>
                     <IAmQButton
                       onClick={() => {
                         setChartContext({
-                          title: `YTD ${title} by Month and Plant`,
+                          title: withPeriodTitle(`YTD ${title} by Month and Plant`),
                           description: "No data connected yet",
                           chartType: "bar",
                           dataType: "warranties",

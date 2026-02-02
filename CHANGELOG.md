@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - 2026-02-02
+**Type**: Fixed
+
+**Description**: ChunkLoadError on layout – split ThemeProvider into smaller chunks
+
+**Details**:
+- **ChunkLoadError**: Refactored root layout to avoid large client chunk in the critical path
+  - New `components/layout-client-shell.tsx` dynamically imports theme and toaster
+  - New `components/theme-and-toaster.tsx` holds ThemeProvider + Toaster (loaded on demand)
+  - Fallback UI with "Retry" button when ChunkLoadError occurs
+- **Impact**: Reduces risk of ChunkLoadError when loading the app; users can retry if a chunk fails
+
+**Files Modified / Added**:
+- `app/layout.tsx` – Dynamic import of layout client shell
+- `components/layout-client-shell.tsx` – New; dynamic import of theme-and-toaster
+- `components/theme-and-toaster.tsx` – New; ThemeProvider + Toaster
+
+**Breaking Changes**: None
+
+---
+
+### Fixed - 2026-02-02
+**Type**: Fixed
+
+**Description**: Dashboard metrics vs upload summary consistency + plant filter alignment
+
+**Details**:
+- **Dashboard vs upload**: Metric tiles now reflect upload summary when no plant filter is applied (full KPI dataset used for “all plants”); KPI recalculation runs when at least one of complaints or deliveries exists (partial uploads supported); manual KPI merge triggers dashboard refresh via `dispatchKpiDataUpdated()`; dashboard listens for `visibilitychange` to refresh when tab becomes visible
+- **Plant filter**: “Individual Plants” shows only plants from Webasto ET Plants.xlsx; dynamically added plants from KPI data (e.g. synthetic “7 (7)”) removed; selected plants are cleaned when they drop out of the official list; plant 210 (Manisa) added to PLANT_COLORS; SAP P01 quick access uses `getSapP01PlantCodes` from plants data for consistency
+- **YTD vs 12MB**: Metric tiles and charts respect selected period mode (12 Months Back or Year to Date) and selected month/year; YTD = January through selected month of selected year
+
+**Files Modified**:
+- `app/(dashboard)/upload/page.tsx` – KPI merge/refresh, partial-upload KPI calc
+- `app/(dashboard)/dashboard/dashboard-client.tsx` – All-plants totals, YTD filtering, visibility refresh
+- `components/dashboard/filter-panel.tsx` – Plants from Excel only, cleanup, SAP P01, plant 210 color
+
+**Breaking Changes**: None
+
+---
+
+### Changed - 2026-02-02
+**Type**: Changed
+
+**Description**: Upload duplicate handling – merge and dedupe by id (no full clear)
+
+**Details**:
+- **Behavior**: New uploads merge with existing data; duplicates are removed by record `id` before persisting (no clearing of IndexedDB stores before upsert)
+- **Change history**: New change type `duplicate`; upload summary and `ChangeHistoryEntry` include `duplicateRecords` count
+- **UI**: Upload summary shows “X duplicates” badge when applicable; Change History panel has “Duplicate” filter option
+
+**Files Modified**:
+- `app/(dashboard)/upload/page.tsx` – `dedupeById` helper, duplicate tracking, badge
+- `lib/data/uploadSummary.ts` – `duplicateRecords`, changeType `duplicate`
+- `lib/data/datasets-idb.ts` – (no clear before upsert)
+- `components/upload/change-history-panel.tsx` – Duplicate filter option
+
+**Breaking Changes**: None
+
+---
+
+### Added - 2026-02-02
+**Type**: Added
+
+**Description**: Period mode toggle (12 Months Back / Year to Date) across dashboard and related pages
+
+**Details**:
+- **Toggle**: Select between “12 Months Back (12MB)” and “Year to Date (YTD)” on Dashboard, PPAPs, Deviations, Cost Poor Quality, Audit Management, Warranties Costs
+- **Filtering**: Metrics and charts use 12-month lookback or YTD (January through selected month of selected year) according to selected mode
+- **Titles**: Page and chart titles update dynamically (e.g. “YTD” vs “12MB” in headings)
+
+**Files Modified**:
+- `app/(dashboard)/dashboard/dashboard-client.tsx` – periodMode state, toggle, YTD/12MB filtering
+- `app/(dashboard)/ppaps/ppaps-client.tsx` – periodMode, toggle, filtering
+- `app/(dashboard)/deviations/deviations-client.tsx` – periodMode, toggle, filtering
+- `app/(dashboard)/cost-poor-quality/cost-poor-quality-client.tsx` – periodMode, toggle, filtering
+- `app/(dashboard)/audit-management/audit-management-client.tsx` – periodMode, toggle, filtering
+- `app/(dashboard)/warranties-costs/warranties-costs-client.tsx` – periodMode, toggle, filtering
+
+**Breaking Changes**: None
+
+---
+
+### Added - 2026-02-02
+**Type**: Added
+
+**Description**: Full i18n for period mode, Change History, filter warning, and related UI
+
+**Details**:
+- **Common**: `periodMode12mb`, `periodModeYtd`, `showingYtdFromJanuary` (en/de/it)
+- **Dashboard**: Filter warning strings (`filterWarningTitle`, `filterWarningDescription`, `filterWarningReset`, etc.) (en/de/it)
+- **Upload**: `duplicates`, `noChangesRecorded`, and Change History panel keys (filters, record/change types, placeholders, buttons, “Showing X of Y changes”, labels) (en/de/it)
+- **Pages**: Dashboard, PPAPs, Deviations, Audit Management, Cost Poor Quality, Warranties Costs use `t.common.periodMode12mb`, `t.common.periodModeYtd`, `t.common.showingYtdFromJanuary` and `t.common.months` for YTD subtitle and month names
+- **Change History panel**: Uses `useTranslation` and `t.upload.*` for all visible strings (title, description, filters, change/record type labels, export, etc.)
+
+**Files Modified**:
+- `lib/i18n/translations.ts` – New keys in interface and en/de/it
+- `app/(dashboard)/dashboard/dashboard-client.tsx` – Period and filter warning translations
+- `app/(dashboard)/ppaps/ppaps-client.tsx`, `deviations-client.tsx`, `audit-management-client.tsx`, `cost-poor-quality-client.tsx`, `warranties-costs-client.tsx` – Period and month translations
+- `app/(dashboard)/upload/page.tsx` – `t.upload.duplicates`
+- `components/upload/change-history-panel.tsx` – Full translation usage via `useTranslation`
+
+**Breaking Changes**: None
+
+---
+
 ### Fixed - 2026-01-17
 **Type**: Fixed
 

@@ -1,7 +1,7 @@
 # QOS ET Quality Report - Project Evaluation & Value Assessment
 
-**Date**: 2026-01-11 (Updated)  
-**Previous**: 2025-12-14  
+**Date**: 2026-02-02 (Updated)  
+**Previous**: 2026-01-11  
 **Version**: 1.0.2  
 **Status**: Production-Ready (Active Development)  
 **See Also**: `PROJECT_AUDIT_2026.md` for comprehensive audit
@@ -49,10 +49,12 @@ Measured from git-tracked files in this repository (PowerShell, Windows):
 
 ✅ **Completed Features:**
 - Excel file upload and parsing (multiple file types)
+- **Upload merge and dedupe**: New uploads merge with existing data; duplicates removed by record id (no full clear); duplicate count and Change History filter (translated)
 - KPI calculation engine (PPM, complaints, deviations, PPAPs)
+- **Period mode** (12 Months Back / Year to Date) on Dashboard, PPAPs, Deviations, Cost Poor Quality, Audit Management, Warranties Costs; metrics and charts respect selected mode and month/year
 - Interactive dashboard with 13+ pages
 - AI-powered insights and recommendations
-- Advanced filtering system
+- Advanced filtering system (Individual Plants from Webasto ET Plants.xlsx only; filter warning translated)
 - Multiple chart visualizations (15+ chart types)
 - Plant data management
 - German locale number formatting
@@ -62,6 +64,8 @@ Measured from git-tracked files in this repository (PowerShell, Windows):
 - FAQ & Glossary hub (tabs, search, deep links, dataset health, diagnostics export)
 - Frosted-glass header styling + right-side dropdowns (Language/Theme/Profile – role placeholders)
 - “How to read this chart” tooltip links from key charts to FAQ anchors
+- **Full i18n** for period mode, YTD subtitle, Change History panel, dashboard filter warning, month names (en/de/it)
+- **Layout chunk fix**: ThemeProvider + Toaster in dynamic chunk; fallback Retry on ChunkLoadError
 
 ---
 
@@ -109,7 +113,8 @@ Measured from git-tracked files in this repository (PowerShell, Windows):
   - Live dataset health visibility
   - Diagnostics export for support workflows
   - Theme and header UI polish across the whole app
-  - Complete i18n (English, German, Italian)
+  - Complete i18n (English, German, Italian) including period mode, Change History, filter warning
+- **Period mode** (12MB/YTD) and **upload duplicate handling** (merge + dedupe) improve reporting and data integrity
 
 ---
 

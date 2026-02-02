@@ -62,6 +62,7 @@ const PLANT_COLORS: Record<string, string> = {
   "195": "bg-cyan-500",
   "200": "bg-violet-500",
   "205": "bg-purple-500",
+  "210": "bg-fuchsia-400",
   "211": "bg-fuchsia-500",
   "215": "bg-pink-500",
   "230": "bg-rose-500",
@@ -128,52 +129,29 @@ export function FilterPanel({
       });
   }, []);
 
-  // Get unique plants - merge plants from "Webasto ET Plants.xlsx" with any additional plants from KPI data
+  // Individual Plants: only plants from "Webasto ET Plants.xlsx" (authoritative source)
+  // Do not add plants from KPI data that are not in the official file
   const availablePlants = useMemo(() => {
-    const plantMap = new Map<string, PlantData>();
-    
-    // First, add all plants from official Excel file (authoritative source)
-    if (plantsData.length > 0) {
-      plantsData.forEach((plant) => {
-        plantMap.set(plant.code, plant);
-      });
-      console.log('[Filter Panel] Loaded plants from official "Webasto ET Plants.xlsx" file:', plantsData.length, 'plants');
-    }
-    
-    // Then, add any plants from KPI data that are NOT in the official file
-    monthlySiteKpis.forEach((kpi) => {
-      if (!plantMap.has(kpi.siteCode)) {
-        // This plant exists in KPI data but not in official file - add it
-        const abbreviation =
-          typeof kpi.siteName === "string" && kpi.siteName.trim().length > 0
-            ? kpi.siteName.trim().substring(0, 3).toUpperCase()
-            : undefined;
-        plantMap.set(kpi.siteCode, {
-          code: kpi.siteCode,
-          name: kpi.siteName || kpi.siteCode,
-          location: kpi.siteName || undefined,
-          abbreviation,
-        });
-        console.log(`[Filter Panel] Added plant ${kpi.siteCode} from KPI data (not in official file)`);
-      }
-    });
-    
-    // Sort all plants
-    const allPlants = Array.from(plantMap.values()).sort((a, b) => {
-      // Sort numerically if both are numbers, otherwise alphabetically
+    if (plantsData.length === 0) return [];
+    const sorted = [...plantsData].sort((a, b) => {
       const aNum = parseInt(a.code);
       const bNum = parseInt(b.code);
-      if (!isNaN(aNum) && !isNaN(bNum)) {
-        return aNum - bNum;
-      }
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
       return a.code.localeCompare(b.code);
     });
-    
-    console.log('[Filter Panel] Total available plants:', allPlants.length);
-    console.log('[Filter Panel] Plant codes:', allPlants.map(p => p.code).join(', '));
-    
-    return allPlants;
-  }, [monthlySiteKpis, plantsData]);
+    console.log('[Filter Panel] Individual Plants from "Webasto ET Plants.xlsx":', sorted.length, 'plants');
+    return sorted;
+  }, [plantsData]);
+
+  // Keep selected plants in sync with official file: remove any selected code not in availablePlants
+  useEffect(() => {
+    if (availablePlants.length === 0 || filters.selectedPlants.length === 0) return;
+    const validCodes = new Set(availablePlants.map((p) => p.code));
+    const kept = filters.selectedPlants.filter((code) => validCodes.has(code));
+    if (kept.length !== filters.selectedPlants.length) {
+      onFiltersChange({ ...filters, selectedPlants: kept });
+    }
+  }, [availablePlants, filters.selectedPlants]); // filters/onFiltersChange in closure
 
   // Auto-select SAP PS4 plants when availablePlants and plantsData are loaded and no plants are selected
   // Only runs if no plants are selected (either from localStorage or initial state)
@@ -255,19 +233,32 @@ export function FilterPanel({
     onFiltersChange({ ...filters, selectedPlants: [] });
   };
 
-  // Quick Access filter functions
-  // These override any previous individual plant selections
-  const filterBySapP01 = () => {
-    const sapP01Plants = availablePlants
+  // getSapP01PlantCodes must be defined before filterBySapP01 (used below)
+  const getSapP01PlantCodes = useMemo(() => {
+    if (plantsData.length === 0) return [];
+    return plantsData
       .filter((plant) => {
-        const plantData = plantsData.find((p) => p.code === plant.code);
-        if (!plantData?.erp) return false;
-        const erp = plantData.erp.toUpperCase().trim();
-        // Match: SAP P01, P01, SAP P01 Sites, etc.
+        if (!plant.erp) return false;
+        const erp = plant.erp.toUpperCase().trim();
         return erp.includes('P01') && !erp.includes('PS4') && !erp.includes('S4');
       })
       .map((p) => p.code);
-    // Override previous selections with Quick Access selection
+  }, [plantsData]);
+
+  // Quick Access filter functions
+  // These override any previous individual plant selections
+  const filterBySapP01 = () => {
+    // Use getSapP01PlantCodes so all P01 plants from Excel are selected (same as PS4)
+    const sapP01Plants = getSapP01PlantCodes.length > 0
+      ? getSapP01PlantCodes
+      : availablePlants
+          .filter((plant) => {
+            const plantData = plantsData.find((p) => p.code === plant.code);
+            if (!plantData?.erp) return false;
+            const erp = plantData.erp.toUpperCase().trim();
+            return erp.includes('P01') && !erp.includes('PS4') && !erp.includes('S4');
+          })
+          .map((p) => p.code);
     onFiltersChange({ ...filters, selectedPlants: sapP01Plants });
   };
 
@@ -329,17 +320,6 @@ export function FilterPanel({
         if (!plant.erp) return false;
         const erp = plant.erp.toUpperCase().trim();
         return erp.includes('PS4') || erp.includes('S4') || erp.includes('SAP S4');
-      })
-      .map((p) => p.code);
-  }, [plantsData]);
-
-  const getSapP01PlantCodes = useMemo(() => {
-    if (plantsData.length === 0) return [];
-    return plantsData
-      .filter((plant) => {
-        if (!plant.erp) return false;
-        const erp = plant.erp.toUpperCase().trim();
-        return erp.includes('P01') && !erp.includes('PS4') && !erp.includes('S4');
       })
       .map((p) => p.code);
   }, [plantsData]);

@@ -64,7 +64,25 @@ Quick reference guide to all documentation files in the QOS ET Quality Report pr
 - Data loss prevention
 - Emergency procedures
 
-### 6. DOCUMENTATION_INDEX.md (This File)
+### 6. MEMORY_BANK.md
+**Purpose**: Fast context for continuing development and recovery  
+**When to read**: Resuming work, understanding recent decisions  
+**When to update**: When critical implementation decisions or workflows change  
+**Contents**: Product intent, core workflows, data sources, backend endpoints, recent critical decisions, troubleshooting
+
+### 7. PROJECT_AUDIT_2026.md
+**Purpose**: Comprehensive project audit and value assessment  
+**When to read**: Understanding architecture, quality, and value  
+**When to update**: After major releases or structural changes  
+**Contents**: Executive summary, architecture assessment, application highlights, strengths/improvements
+
+### 8. PROJECT_EVALUATION.md
+**Purpose**: Project metrics, value assessment, and missing features  
+**When to read**: Estimating value, planning enhancements  
+**When to update**: When features or metrics change  
+**Contents**: LOC metrics, technology stack, feature completeness, value assessment, missing features
+
+### 9. DOCUMENTATION_INDEX.md (This File)
 **Purpose**: Quick reference to all documentation  
 **When to read**: Finding the right documentation  
 **When to update**: When new documentation is added
@@ -90,6 +108,12 @@ Quick reference guide to all documentation files in the QOS ET Quality Report pr
 **...follow best practices**
 → Read: `WORKFLOW.md`
 
+**...get fast context for continuing work**
+→ Read: `MEMORY_BANK.md`
+
+**...understand project value and audit**
+→ Read: `PROJECT_AUDIT_2026.md`, `PROJECT_EVALUATION.md`
+
 **...find a specific document**
 → Read: This file (`DOCUMENTATION_INDEX.md`)
 
@@ -101,9 +125,11 @@ When making changes, update:
 
 - [ ] **CHANGELOG.md** - ALWAYS (required)
 - [ ] **PROJECT_STATE.md** - If structure/features change
+- [ ] **MEMORY_BANK.md** - If critical implementation decisions or workflows change
 - [ ] **README.md** - If setup/usage changes
 - [ ] **RECOVERY_GUIDE.md** - If recovery procedures change
 - [ ] **WORKFLOW.md** - If workflow changes
+- [ ] **PROJECT_AUDIT_2026.md** / **PROJECT_EVALUATION.md** - After major releases or value-relevant changes
 
 ---
 
@@ -173,5 +199,5 @@ Files modified:
 
 ---
 
-**Last Updated**: 2026-01-11
+**Last Updated**: 2026-02-02
 

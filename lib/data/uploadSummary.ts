@@ -30,7 +30,7 @@ export interface ChangeHistoryEntry {
   oldValue: any;
   newValue: any;
   reason?: string; // Optional reason for change
-  changeType: "conversion" | "manual_edit" | "correction" | "bulk_action" | "new_entry" | "file_upload";
+  changeType: "conversion" | "manual_edit" | "correction" | "bulk_action" | "new_entry" | "file_upload" | "duplicate";
   affectedMetrics: AffectedMetrics; // Which metrics/visualizations are affected
   onePagerLink?: string; // Link to one-pager folder/document
   dataDetails?: Record<string, any>; // Additional details about what data was changed (for manual entries and file uploads)
@@ -115,6 +115,7 @@ export interface UploadSummaryEntry {
     recordsWithIssues: number;
     recordsCorrected: number;
     recordsUnchanged: number;
+    duplicateRecords?: number;
   };
 }
 

@@ -20,13 +20,16 @@ import { useRouter } from "next/navigation";
 import type { Delivery, MonthlySiteKpi } from "@/lib/domain/types";
 import { calculateGlobalPPM, calculateMonthlySiteKpis } from "@/lib/domain/kpi";
 import { getAllComplaints, getAllDeliveries, getDatasetCounts, upsertComplaints, upsertDeliveries } from "@/lib/data/datasets-idb";
+import { createComplaints, listComplaints } from "@/lib/api/complaints";
+import { useApiMode } from "@/lib/hooks/useApiMode";
+import type { CreateComplaintInput } from "@/lib/repo/types";
 import * as XLSX from "xlsx";
 import { ROLE_CHANGED_EVENT, ROLE_STORAGE_KEY, type RoleKey } from "@/lib/auth/roles";
 import { dispatchKpiDataUpdated } from "@/lib/data/events";
 import { UploadSummaryTable } from "@/components/upload/upload-summary-table";
 import { ChangeHistoryPanel } from "@/components/upload/change-history-panel";
 import type { UploadSummaryEntry, ChangeHistoryEntry } from "@/lib/data/uploadSummary";
-import { saveUploadSummary, loadUploadSummary, saveChangeHistory, loadChangeHistory, getAllUploadSummaries } from "@/lib/data/uploadSummary";
+import { getAffectedMetricsForComplaint, getAffectedMetricsForDelivery, saveUploadSummary, loadUploadSummary, saveChangeHistory, loadChangeHistory, getAllUploadSummaries } from "@/lib/data/uploadSummary";
 import { applyComplaintCorrections, applyDeliveryCorrections } from "@/lib/data/correctedData";
 import type { Complaint } from "@/lib/domain/types";
 
@@ -179,6 +182,7 @@ async function postFormDataWithProgress<T>(
 export default function UploadPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const apiMode = useApiMode();
   const [role, setRole] = useState<RoleKey>("reader");
   const [hasRoleLoaded, setHasRoleLoaded] = useState(false);
   const [uploading, setUploading] = useState<Record<UploadSectionKey, boolean>>({
@@ -514,6 +518,8 @@ export default function UploadPage() {
       const data = allResults;
 
       const summary: Record<string, string | number> = { files: files.length };
+      let dedupedComplaintsForSummary: Complaint[] = [];
+      let duplicateComplaintsCount = 0;
       let conversionStatus: Array<{
         complaintId: string;
         notificationNumber: string;
@@ -537,17 +543,87 @@ export default function UploadPage() {
         summary.q3 = q3;
         summary.totalDefectiveParts = totalDefects;
 
-        // Persist parsed complaints in IndexedDB to avoid localStorage quota issues
+        // Dedupe against existing complaints (collaborative uploads)
+        const revived = (items as any[]).filter((x) => x?.id).map(reviveComplaint);
+        let existingComplaintIds = new Set<string>();
+        try {
+          if (apiMode.isApiMode) {
+            const apiComplaints = await listComplaints();
+            existingComplaintIds = new Set(apiComplaints.map((c) => c.id));
+          } else {
+            existingComplaintIds = new Set((await getAllComplaints()).map((c) => c.id));
+          }
+        } catch {
+          existingComplaintIds = new Set((await getAllComplaints()).map((c) => c.id));
+        }
+        const { deduped: dedupedComplaints, duplicates: duplicateComplaints } = dedupeById(revived, existingComplaintIds);
+        summary.duplicateRecords = duplicateComplaints.length;
+        dedupedComplaintsForSummary = dedupedComplaints;
+        duplicateComplaintsCount = duplicateComplaints.length;
+        if (duplicateComplaints.length > 0) {
+          duplicateComplaints.forEach((c) => {
+            uploadChangeHistory.push({
+              id: makeId("duplicate_complaint"),
+              timestamp: new Date().toISOString(),
+              editor: role || "Unknown",
+              recordId: c.id,
+              recordType: "complaint",
+              field: "duplicate",
+              oldValue: null,
+              newValue: { id: c.id, notificationNumber: c.notificationNumber, siteCode: c.siteCode },
+              changeType: "duplicate",
+              affectedMetrics: getAffectedMetricsForComplaint(c, "notificationType"),
+              reason: "Duplicate complaint ignored",
+            });
+          });
+        }
+
+        // Persist parsed complaints via API or IndexedDB fallback (deduped)
         if (typeof window !== "undefined") {
-          const revived = (items as any[]).filter((x) => x?.id).map(reviveComplaint);
-          await upsertComplaints(revived);
-          const counts = await getDatasetCounts();
-          setStoredParsedCounts(counts);
-          setProgressBySection((p) => ({ ...p, complaints: { percent: 100, status: "success" } }));
+          try {
+            if (apiMode.isApiMode) {
+              const complaintInputs: CreateComplaintInput[] = dedupedComplaints.map((c) => ({
+                id: c.id,
+                notificationNumber: c.notificationNumber,
+                notificationType: c.notificationType,
+                category: c.category,
+                plant: c.plant,
+                siteCode: c.siteCode,
+                siteName: c.siteName,
+                createdOn: c.createdOn,
+                defectiveParts: c.defectiveParts,
+                source: c.source,
+                unitOfMeasure: c.unitOfMeasure,
+                materialDescription: c.materialDescription,
+                materialNumber: c.materialNumber,
+                conversionJson: c.conversion ? JSON.stringify(c.conversion) : undefined,
+              }));
+              await createComplaints(complaintInputs);
+              const apiComplaints = await listComplaints();
+              setStoredParsedCounts({ complaints: apiComplaints.length, deliveries: storedParsedCounts.deliveries });
+            } else {
+              await upsertComplaints(dedupedComplaints);
+              const counts = await getDatasetCounts();
+              setStoredParsedCounts(counts);
+            }
+            setProgressBySection((p) => ({ ...p, complaints: { percent: 100, status: "success" } }));
+          } catch (err) {
+            console.error("[Upload] Failed to save complaints:", err);
+            try {
+              await upsertComplaints(dedupedComplaints);
+              const counts = await getDatasetCounts();
+              setStoredParsedCounts(counts);
+              setProgressBySection((p) => ({ ...p, complaints: { percent: 100, status: "success" } }));
+              setErrors((prev) => ({ ...prev, complaints: "Saved to local storage (API unavailable)" }));
+            } catch {
+              setProgressBySection((p) => ({ ...p, complaints: { percent: 0, status: "error" } }));
+              setErrors((prev) => ({ ...prev, complaints: err instanceof Error ? err.message : "Failed to save complaints" }));
+            }
+          }
         }
 
         // Create upload summary with conversion status
-        const complaints = items as Complaint[];
+        const complaints = dedupedComplaints as Complaint[];
         conversionStatus = complaints.map(c => {
           // Determine conversion status
           let status: "converted" | "failed" | "needs_attention" | "not_applicable";
@@ -587,10 +663,30 @@ export default function UploadPage() {
         summary.customerQuantity = custQty;
         summary.supplierQuantity = supQty;
 
-        // Persist parsed deliveries in IndexedDB to avoid localStorage quota issues
+        // Persist parsed deliveries in IndexedDB (deduped)
         if (typeof window !== "undefined") {
           const revived = (items as any[]).filter((x) => x?.id).map(reviveDelivery);
-          await upsertDeliveries(revived);
+          const existingIds = new Set((await getAllDeliveries()).map((d) => d.id));
+          const { deduped, duplicates } = dedupeById(revived, existingIds);
+          summary.duplicateRecords = duplicates.length;
+          if (duplicates.length > 0) {
+            duplicates.forEach((d) => {
+              uploadChangeHistory.push({
+                id: makeId("duplicate_delivery"),
+                timestamp: new Date().toISOString(),
+                editor: role || "Unknown",
+                recordId: d.id,
+                recordType: "delivery",
+                field: "duplicate",
+                oldValue: null,
+                newValue: { id: d.id, siteCode: d.siteCode, date: d.date, kind: d.kind, quantity: d.quantity },
+                changeType: "duplicate",
+                affectedMetrics: getAffectedMetricsForDelivery(d, "quantity"),
+                reason: "Duplicate delivery ignored",
+              });
+            });
+          }
+          await upsertDeliveries(deduped);
           const counts = await getDatasetCounts();
           setStoredParsedCounts(counts);
           setProgressBySection((p) => ({ ...p, deliveries: { percent: 100, status: "success" } }));
@@ -623,33 +719,48 @@ export default function UploadPage() {
       persistHistory([entry, ...history]);
 
       // Create change history entry for file upload
-      const uploadChangeHistory: ChangeHistoryEntry = {
-        id: makeId("upload_change"),
-        timestamp: entry.uploadedAtIso,
-        editor: role === "admin" ? "Admin" : role === "editor" ? "Editor" : "System",
-        recordId: entry.id,
-        recordType: section === "complaints" ? "complaint" : section === "deliveries" ? "delivery" : section === "ppap" ? "ppap" : section === "deviations" ? "deviation" : "file_upload",
-        field: "all",
-        oldValue: null,
-        newValue: summary,
-        reason: `File upload: ${files.map(f => f.name).join(", ")}`,
-        changeType: "file_upload",
-        affectedMetrics: {
-          metrics: sectionMeta[section].usedIn,
-          visualizations: sectionMeta[section].usedIn,
-          pages: sectionMeta[section].usedIn,
-          calculations: [],
+      const uploadChangeHistory: ChangeHistoryEntry[] = [
+        {
+          id: makeId("upload_change"),
+          timestamp: entry.uploadedAtIso,
+          editor: role === "admin" ? "Admin" : role === "editor" ? "Editor" : "System",
+          recordId: entry.id,
+          recordType:
+            section === "complaints"
+              ? "complaint"
+              : section === "deliveries"
+                ? "delivery"
+                : section === "ppap"
+                  ? "ppap"
+                  : section === "deviations"
+                    ? "deviation"
+                    : "file_upload",
+          field: "all",
+          oldValue: null,
+          newValue: summary,
+          reason: `File upload: ${files.map((f) => f.name).join(", ")}`,
+          changeType: "file_upload",
+          affectedMetrics: {
+            metrics: sectionMeta[section].usedIn,
+            visualizations: sectionMeta[section].usedIn,
+            pages: sectionMeta[section].usedIn,
+            calculations: [],
+          },
+          dataDetails: {
+            files: files.map((f) => ({ name: f.name, size: f.size })),
+            section,
+            summary,
+          },
         },
-        dataDetails: {
-          files: files.map(f => ({ name: f.name, size: f.size })),
-          section,
-          summary,
-        },
-      };
+      ];
 
       // Create and save upload summary for complaints
       if (section === "complaints" && conversionStatus.length > 0) {
-        const complaints = Array.isArray(data?.complaints) ? (data.complaints as Complaint[]) : [];
+        const complaints = dedupedComplaintsForSummary.length > 0
+          ? dedupedComplaintsForSummary
+          : Array.isArray(data?.complaints)
+            ? (data.complaints as Complaint[])
+            : [];
         const uploadSummary: UploadSummaryEntry = {
           id: entry.id,
           uploadedAtIso: entry.uploadedAtIso,
@@ -658,21 +769,22 @@ export default function UploadPage() {
           rawData: { complaints },
           processedData: { complaints },
           conversionStatus: { complaints: conversionStatus },
-          changeHistory: [uploadChangeHistory],
+          changeHistory: uploadChangeHistory,
           summary: {
             totalRecords: complaints.length,
             recordsWithIssues: conversionStatus.filter(s => s.status === "failed" || s.status === "needs_attention").length,
             recordsCorrected: 0,
             recordsUnchanged: complaints.length,
+            duplicateRecords: duplicateComplaintsCount,
           },
         };
 
         saveUploadSummary(uploadSummary);
-        saveChangeHistory(entry.id, [uploadChangeHistory]);
+        saveChangeHistory(entry.id, uploadChangeHistory);
         setUploadSummaries(prev => new Map(prev).set(entry.id, uploadSummary));
       } else {
         // For other sections, save change history separately
-        saveChangeHistory(entry.id, [uploadChangeHistory]);
+        saveChangeHistory(entry.id, uploadChangeHistory);
       }
 
       // Auto-calculate KPIs in the background after complaints/deliveries uploads
@@ -698,23 +810,59 @@ export default function UploadPage() {
     }
   }
 
+  function dedupeById<T extends { id: string }>(items: T[], existingIds: Set<string>) {
+    const seen = new Set(existingIds);
+    const deduped: T[] = [];
+    const duplicates: T[] = [];
+    for (const item of items) {
+      const id = item?.id;
+      if (!id) continue;
+      if (seen.has(id)) {
+        duplicates.push(item);
+        continue;
+      }
+      seen.add(id);
+      deduped.push(item);
+    }
+    return { deduped, duplicates };
+  }
+
   async function calculateKpisFromStoredData(options: { writeHistory: boolean }) {
     if (typeof window === "undefined") return;
     const counts = await getDatasetCounts().catch(() => ({ complaints: 0, deliveries: 0 }));
-    if (counts.complaints === 0 || counts.deliveries === 0) {
-      // Don't spam errors during incremental uploads; recalc will happen once both exist.
+    if (counts.complaints === 0 && counts.deliveries === 0) {
       return;
     }
+    // Run recalc when at least one dataset exists so KPIs (and plant list) include all sites from deliveries/complaints.
 
     setCalculatingKpis(true);
     setKpiCalculationProgress({ percent: 10, status: "calculating" });
 
     try {
-      // Read from IndexedDB (large storage)
-      const [complaintsRaw, deliveriesRaw] = await Promise.all([getAllComplaints(), getAllDeliveries()]);
-      // Safety: ensure Date fields are Dates (in case older data was stored as strings)
-      const complaints = complaintsRaw.map(reviveComplaint);
-      const deliveries = deliveriesRaw.map(reviveDelivery);
+      // Read from API or IndexedDB fallback
+      let complaints: Complaint[];
+      let deliveries: Delivery[];
+      
+      if (apiMode.isApiMode) {
+        try {
+          const apiComplaints = await listComplaints();
+          complaints = apiComplaints.map((c) => ({
+            ...c,
+            createdOn: c.createdOn instanceof Date ? c.createdOn : new Date(c.createdOn),
+          }));
+        } catch (err) {
+          console.warn("[KPI Calc] API failed, falling back to IndexedDB:", err);
+          const complaintsRaw = await getAllComplaints();
+          complaints = complaintsRaw.map(reviveComplaint);
+        }
+      } else {
+        const complaintsRaw = await getAllComplaints();
+        complaints = complaintsRaw.map(reviveComplaint);
+      }
+
+      // Deliveries from IndexedDB (not migrated to API yet)
+      const deliveriesRaw = await getAllDeliveries();
+      deliveries = deliveriesRaw.map(reviveDelivery);
 
       setKpiCalculationProgress({ percent: 60, status: "calculating" });
 
@@ -770,10 +918,10 @@ export default function UploadPage() {
     setErrors((prev) => ({ ...prev, complaints: null, deliveries: null }));
     if (typeof window === "undefined") return;
     const counts = await getDatasetCounts().catch(() => ({ complaints: 0, deliveries: 0 }));
-    if (counts.complaints === 0 || counts.deliveries === 0) {
+    if (counts.complaints === 0 && counts.deliveries === 0) {
       setErrors((prev) => ({
         ...prev,
-        deliveries: "To calculate KPIs, please upload at least one complaints file and one deliveries file.",
+        deliveries: "To calculate KPIs, please upload at least one complaints file or one deliveries file.",
       }));
       return;
     }
@@ -788,6 +936,7 @@ export default function UploadPage() {
     for (const m of manual) byKey.set(`${m.month}__${m.siteCode}`, m);
     const merged = Array.from(byKey.values()).sort((a, b) => a.month.localeCompare(b.month) || a.siteCode.localeCompare(b.siteCode));
     localStorage.setItem("qos-et-kpis", JSON.stringify(merged));
+    dispatchKpiDataUpdated();
   }
 
   function addManualEntry() {
@@ -1712,6 +1861,11 @@ export default function UploadPage() {
                           {summary.summary.recordsWithIssues > 0 && (
                             <span className="ml-2 text-amber-600">
                               • {summary.summary.recordsWithIssues} with issues
+                            </span>
+                          )}
+                          {summary.summary.duplicateRecords && summary.summary.duplicateRecords > 0 && (
+                            <span className="ml-2 text-sky-600">
+                              • {summary.summary.duplicateRecords} {t.upload.duplicates}
                             </span>
                           )}
                         </Badge>

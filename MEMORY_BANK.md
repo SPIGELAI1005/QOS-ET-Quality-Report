@@ -1,6 +1,6 @@
 # Memory Bank — QOS ET Quality Report
 
-**Last Updated**: 2026-01-17  
+**Last Updated**: 2026-02-02  
 **Purpose**: Fast, accurate context for continuing development and recovery.
 
 ---
@@ -22,7 +22,10 @@ QOS ET Quality Report is a Next.js dashboard for **manufacturing quality KPIs** 
 ### 2) Filter by PLANT + time
 
 - The right-side filter panel supports **multi-select plants** and date filtering.
+- **Individual Plants** options come only from **Webasto ET Plants.xlsx** (no synthetic plants from KPI data).
 - Empty plant selection means **“all plants”** (no plant filter applied).
+
+- **Period mode**: Dashboard and related pages (PPAPs, Deviations, Cost Poor Quality, Audit Management, Warranties Costs) have a **12 Months Back (12MB)** / **Year to Date (YTD)** toggle; metrics and charts respect the selected mode and month/year.
 
 ### 3) AI Management Summary (`/ai-summary`)
 
@@ -68,6 +71,14 @@ QOS ET Quality Report is a Next.js dashboard for **manufacturing quality KPIs** 
 - `POST /api/ai/interpret-kpis`: AI insights for AI Summary page (includes validation + minimum actions)
 
 ---
+
+## Recent critical implementation decisions (2026-02-02)
+
+- **Layout / ChunkLoadError**: Root layout splits client shell; ThemeProvider + Toaster live in `theme-and-toaster.tsx` (dynamically imported). Fallback UI with Retry on ChunkLoadError.
+- **Period mode**: Dashboard and five related pages have **12 Months Back (12MB)** vs **Year to Date (YTD)** toggle; metrics and charts filter by selected mode and month/year; titles update (YTD/12MB).
+- **Upload duplicates**: New uploads **merge** with existing data; duplicates are **deduped by record id** before persist (no full clear of IndexedDB). Change type `duplicate` and `duplicateRecords` count in upload summary; Change History panel has Duplicate filter.
+- **Plant filter**: Individual Plants options come **only from Webasto ET Plants.xlsx**; selected plants are cleaned when they drop out of the list; SAP P01 quick access uses plants data; plant 210 (Manisa) in PLANT_COLORS.
+- **i18n**: Period mode labels, YTD subtitle, “duplicates”, Change History panel (filters, types, labels), dashboard filter warning, and month names are fully translated (en/de/it).
 
 ## Recent critical implementation decisions (2026-01-17)
 

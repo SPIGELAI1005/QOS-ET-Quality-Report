@@ -90,6 +90,7 @@ export function DeviationsClient() {
   const [selectedPlantForStatusChart, setSelectedPlantForStatusChart] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [periodMode, setPeriodMode] = useState<"12mb" | "ytd">("12mb");
 
   // AI Summary state (same behavior as Dashboard AI Summary)
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -180,6 +181,12 @@ export function DeviationsClient() {
     };
   }, [deviations]);
 
+  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const withPeriodTitle = useCallback(
+    (title: string) => title.replace(/\bYTD\b/g, periodLabel),
+    [periodLabel]
+  );
+
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
     if (availableMonthsYears.lastMonthYear) {
@@ -221,15 +228,21 @@ export function DeviationsClient() {
       const plantOk = plantSet.size === 0 || plantSet.has(site);
 
       const created = d.createdOn instanceof Date ? d.createdOn : new Date(d.createdOn);
-      const lookbackStart = new Date(lookbackPeriod.start.getFullYear(), lookbackPeriod.start.getMonth(), 1);
-      const lookbackEnd = new Date(lookbackPeriod.end.getFullYear(), lookbackPeriod.end.getMonth() + 1, 0, 23, 59, 59, 999);
-      if (created < lookbackStart || created > lookbackEnd) return false;
+      if (periodMode === "12mb") {
+        const lookbackStart = new Date(lookbackPeriod.start.getFullYear(), lookbackPeriod.start.getMonth(), 1);
+        const lookbackEnd = new Date(lookbackPeriod.end.getFullYear(), lookbackPeriod.end.getMonth() + 1, 0, 23, 59, 59, 999);
+        if (created < lookbackStart || created > lookbackEnd) return false;
+      } else if (selectedMonth !== null && selectedYear !== null) {
+        const year = created.getFullYear();
+        const month = created.getMonth() + 1;
+        if (year !== selectedYear || month > selectedMonth) return false;
+      }
       if (filters.dateFrom && created < filters.dateFrom) return false;
       if (filters.dateTo && created > filters.dateTo) return false;
 
       return plantOk;
     });
-  }, [deviations, filters.selectedPlants, filters.dateFrom, filters.dateTo, lookbackPeriod.start, lookbackPeriod.end]);
+  }, [deviations, filters.selectedPlants, filters.dateFrom, filters.dateTo, lookbackPeriod.start, lookbackPeriod.end, periodMode, selectedMonth, selectedYear]);
 
   const totalDNotifications = filteredDeviations.length;
     const inProgress = filteredDeviations.filter((d) => d.status === "In Progress" || d.status === "Pending" || d.status === t.deviations.inProgress || d.status === t.deviations.pending).length;
@@ -484,7 +497,9 @@ export function DeviationsClient() {
       <div className="flex-1 space-y-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">Deviations Overview YTD //</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {withPeriodTitle("Deviations Overview YTD //")}
+            </h1>
             {selectedMonth !== null && selectedYear !== null && (
               <div className="flex items-center gap-2">
                 <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(Number(v))}>
@@ -511,11 +526,20 @@ export function DeviationsClient() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as "12mb" | "ytd")}>
+                  <SelectTrigger className="min-w-[240px] w-auto h-auto py-1 px-2 text-3xl font-bold tracking-tight border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 hover:bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12mb">12 Months Back (12MB)</SelectItem>
+                    <SelectItem value="ytd">Year to Date (YTD)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
           <p className="text-muted-foreground mt-2">Internal Performance • Deviations Overview</p>
-          {selectedMonth !== null && selectedYear !== null && (
+          {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
               Showing 12-month lookback from {monthNames[selectedMonth - 1]} {selectedYear}
               {lookbackPeriod.startMonthStr !== lookbackPeriod.endMonthStr && (
@@ -523,10 +547,15 @@ export function DeviationsClient() {
               )}
             </p>
           )}
+          {selectedMonth !== null && selectedYear !== null && periodMode === "ytd" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t.common.showingYtdFromJanuary} {selectedYear} {t.common.to} {monthNames[selectedMonth - 1]} {selectedYear}.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">YTD Deviations Metrics</h2>
+          <h2 className="text-lg font-semibold text-foreground">{withPeriodTitle("YTD Deviations Metrics")}</h2>
           <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-stretch">
             <div className="space-y-4">
               <Card className="glass-card-glow" style={{ borderColor: "#9E9E9E", borderWidth: "2px" }}>
@@ -795,7 +824,7 @@ export function DeviationsClient() {
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle>YTD D Notifications Closed vs. In Progress by Month and Plant</CardTitle>
+                  <CardTitle>{withPeriodTitle("YTD D Notifications Closed vs. In Progress by Month and Plant")}</CardTitle>
                   <CardDescription>
                     {selectedPlantForStatusChart
                       ? `Closed vs. In Progress for ${formatPlantLabel(selectedPlantForStatusChart)}`
@@ -810,7 +839,7 @@ export function DeviationsClient() {
                 <IAmQButton
                   onClick={() => {
                     setChartContext({
-                      title: "YTD D Notifications Closed vs. In Progress by Month and Plant",
+                      title: withPeriodTitle("YTD D Notifications Closed vs. In Progress by Month and Plant"),
                       description: selectedPlantForStatusChart
                         ? `Closed vs. In Progress for ${formatPlantLabel(selectedPlantForStatusChart)}`
                         : "Closed vs. In Progress across all selected plants",

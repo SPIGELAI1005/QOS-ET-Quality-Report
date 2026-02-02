@@ -1,6 +1,6 @@
 # QOS ET Quality Report - Comprehensive Project Audit & Value Assessment
 
-**Audit Date**: 2026-01-17  
+**Audit Date**: 2026-02-02  
 **Version**: 1.0.6  
 **Status**: Production-Ready (Active Development)  
 **Auditor**: AI Code Review & Analysis
@@ -65,13 +65,12 @@ The QOS ET Quality Report is a **sophisticated, enterprise-grade web application
 **Assessment**: Excellent type coverage reduces runtime errors.
 
 #### 4. **Internationalization** (Score: 10/10)
-- **Complete i18n system** with 3 languages
-- Custom translation hook
-- Event-based language switching
-- HTML lang attribute management
-- **2,237+ translation lines** in translations.ts
+- **Complete i18n system** with 3 languages (en, de, it)
+- Custom translation hook; event-based language switching; HTML lang attribute management
+- **Extended coverage** (2026-02): period mode (12MB/YTD) labels, YTD subtitle, Change History panel (filters, record/change types, labels, export), dashboard filter warning, duplicate count, month names on all period pages
+- **2,300+ translation lines** in translations.ts
 
-**Assessment**: Enterprise-grade i18n implementation.
+**Assessment**: Enterprise-grade i18n implementation with full coverage of new UI (period toggle, Change History, filter warning).
 
 #### 5. **AI Integration** (Score: 9/10)
 - **Multi-provider support** (OpenAI + Anthropic)
@@ -161,10 +160,9 @@ The QOS ET Quality Report is a **sophisticated, enterprise-grade web application
 - **Column Header Detection**: Recognizes multiple variations (e.g., "notification", "quantity", "defective parts")
 - **Row-by-Row Processing**: Extracts values based on detected column indices
 - **Month Detection**: Extracts and aggregates data by month (YYYY-MM format)
-- **Data Accumulation**: Merges new uploads with existing data (by month+site combination) - **CRITICAL FIX**
-- Multiple file format support
-- Progress tracking
-- **Enhanced Change History**: Professional audit trail with "Recorded By", timestamps, one-pager links
+- **Data Accumulation**: Merges new uploads with existing data (by month+site combination); **duplicate handling** by record id (dedupe before persist, no full clear); duplicate count and Change History filter
+- Multiple file format support; progress tracking
+- **Enhanced Change History**: Professional audit trail with "Recorded By", timestamps, one-pager links; **fully translated** (filters, record/change types, labels)
 - **Manual data entry form** with validation (prevents negative values)
 - Batch processing
 
@@ -181,10 +179,9 @@ The QOS ET Quality Report is a **sophisticated, enterprise-grade web application
 
 **Features**:
 - Full English, German, Italian translations
-- 2,237+ translation strings
-- Event-based language switching
-- Persistent language preference
-- HTML lang attribute management
+- 2,300+ translation strings (including period mode, Change History, filter warning, month names)
+- Event-based language switching; persistent language preference; HTML lang attribute management
+- **Period mode** (12MB/YTD) and **Change History** panel fully translated
 
 **Why It's Special**:
 - **Complete translation coverage** (rare in enterprise apps)
@@ -197,8 +194,9 @@ The QOS ET Quality Report is a **sophisticated, enterprise-grade web application
 
 **Features**:
 - 15+ specialized pages
+- **Period mode** (12 Months Back / Year to Date) on Dashboard, PPAPs, Deviations, Cost Poor Quality, Audit Management, Warranties Costs; metrics and charts respect selected mode and month/year
 - Interactive charts (15+ types)
-- Advanced filtering system
+- Advanced filtering system (Individual Plants from Webasto ET Plants.xlsx only; filter warning translated)
 - KPI calculation engine
 - Real-time data visualization
 - Export capabilities

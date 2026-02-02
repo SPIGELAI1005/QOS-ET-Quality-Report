@@ -12,7 +12,7 @@
  * It will pass if the endpoint returns a proper response structure (even if it's an error about missing keys).
  */
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
+const API_URL = process.env.API_URL || 'http://localhost:3005';
 const ENDPOINT = `${API_URL}/api/iamq`;
 
 interface TestResult {

@@ -102,6 +102,20 @@ export async function upsertDeliveries(rows: Delivery[]): Promise<number> {
   return await putMany<Delivery>(STORE_DELIVERIES, rows);
 }
 
+export async function clearComplaints(): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction(STORE_COMPLAINTS, "readwrite");
+  tx.objectStore(STORE_COMPLAINTS).clear();
+  await txDone(tx);
+}
+
+export async function clearDeliveries(): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction(STORE_DELIVERIES, "readwrite");
+  tx.objectStore(STORE_DELIVERIES).clear();
+  await txDone(tx);
+}
+
 export async function getAllComplaints(): Promise<Complaint[]> {
   return await getAll<Complaint>(STORE_COMPLAINTS);
 }

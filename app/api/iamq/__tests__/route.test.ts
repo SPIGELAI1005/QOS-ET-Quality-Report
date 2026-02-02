@@ -78,7 +78,7 @@ describe('I AM Q API Route', () => {
   });
 
   it('should return error when API key is missing', async () => {
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: JSON.stringify({
         question: 'What is PPM?',
@@ -102,7 +102,7 @@ describe('I AM Q API Route', () => {
     process.env.AI_PROVIDER = 'invalid_provider';
     process.env.AI_API_KEY = 'test-key';
 
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: JSON.stringify({
         question: 'What is PPM?',
@@ -123,7 +123,7 @@ describe('I AM Q API Route', () => {
   it('should return validation error for empty question', async () => {
     process.env.AI_API_KEY = 'test-key';
 
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: JSON.stringify({
         question: '   ', // Only whitespace
@@ -143,7 +143,7 @@ describe('I AM Q API Route', () => {
   });
 
   it('should return validation error for invalid JSON', async () => {
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: 'invalid json',
       headers: {
@@ -163,7 +163,7 @@ describe('I AM Q API Route', () => {
     process.env.AI_API_KEY = 'test-key-12345';
     process.env.AI_PROVIDER = 'openai';
 
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: JSON.stringify({
         question: 'What is PPM?',
@@ -196,7 +196,7 @@ describe('I AM Q API Route', () => {
     process.env.AI_API_KEY = 'test-key-12345';
     process.env.AI_PROVIDER = 'openai';
 
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: JSON.stringify({
         question: 'Why is my PPM zero?',
@@ -229,7 +229,7 @@ describe('I AM Q API Route', () => {
     process.env.OPENAI_API_KEY = 'sk-test-key';
     process.env.AI_PROVIDER = 'openai';
 
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: JSON.stringify({
         question: 'What is Q1?',
@@ -247,7 +247,7 @@ describe('I AM Q API Route', () => {
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
     process.env.AI_PROVIDER = 'anthropic';
 
-    const request = new NextRequest('http://localhost:3000/api/iamq', {
+    const request = new NextRequest('http://localhost:3005/api/iamq', {
       method: 'POST',
       body: JSON.stringify({
         question: 'What is Q2?',

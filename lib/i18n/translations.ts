@@ -42,6 +42,9 @@ export interface Translations {
     change: string;
     defective: string;
     average: string;
+    periodMode12mb: string;
+    periodModeYtd: string;
+    showingYtdFromJanuary: string;
   };
   header: {
     title: string;
@@ -108,6 +111,14 @@ export interface Translations {
       customerPpmTrend: string;
       supplierPpmTrend: string;
       monthlyTrend: string;
+    filterWarningTitle: string;
+    filterWarningDescription: string;
+    filterWarningReset: string;
+    filterWarningExcludesAll: string;
+    filterWarningExcludesCustomer: string;
+    filterWarningExcludesSupplier: string;
+    filterWarningMakesZero: string;
+    metricsForSelectedSitesOnly: string;
     };
     aiSummary: {
       title: string;
@@ -336,9 +347,40 @@ export interface Translations {
     historyTitle: string;
     historyDescription: string;
     noHistory: string;
+    noChangesRecorded: string;
+    duplicates: string;
     files: string;
     summary: string;
     notes: string;
+    filtersLabel: string;
+    recordTypeLabel: string;
+    changeTypeLabel: string;
+    recordTypeAll: string;
+    recordTypeComplaint: string;
+    recordTypeDelivery: string;
+    recordTypePpap: string;
+    recordTypeDeviation: string;
+    changeTypeAll: string;
+    changeTypeConversion: string;
+    changeTypeManualEdit: string;
+    changeTypeCorrection: string;
+    changeTypeBulkAction: string;
+    changeTypeNewEntry: string;
+    changeTypeFileUpload: string;
+    changeTypeDuplicate: string;
+    filterByIdPlaceholder: string;
+    filterByEditorPlaceholder: string;
+    clearFiltersButton: string;
+    exportButton: string;
+    showingXOfYChanges: string;
+    recordedBy: string;
+    recordIdLabel: string;
+    fieldLabel: string;
+    reasonLabel: string;
+    impactLabel: string;
+    metricsLabel: string;
+    visualizationsLabel: string;
+    pagesLabel: string;
   };
   roleAccess: {
     selectRole: string;
@@ -583,6 +625,9 @@ const translations: Record<LanguageKey, Translations> = {
       change: "Change",
       defective: "Defective",
       average: "Average",
+      periodMode12mb: "12 Months Back (12MB)",
+      periodModeYtd: "Year to Date (YTD)",
+      showingYtdFromJanuary: "Showing YTD from January",
     },
     header: {
       title: "QOS ET Quality Report",
@@ -649,6 +694,14 @@ const translations: Record<LanguageKey, Translations> = {
       customerPpmTrend: "Customer PPM Trend",
       supplierPpmTrend: "Supplier PPM Trend",
       monthlyTrend: "Monthly Trend",
+      filterWarningTitle: "Dashboard data is being hidden by filters",
+      filterWarningDescription: "Your current filter selection excludes",
+      filterWarningReset: "Reset filters",
+      filterWarningExcludesAll: "Customer (Q1) and Supplier (Q2)",
+      filterWarningExcludesCustomer: "Customer (Q1)",
+      filterWarningExcludesSupplier: "Supplier (Q2)",
+      filterWarningMakesZero: "notifications. This makes complaints/defects/PPM appear as 0 or N/A even when uploads succeeded.",
+      metricsForSelectedSitesOnly: "Metrics are for selected sites only. Clear plant filter to see totals for all sites (matching upload summary).",
     },
     aiSummary: {
       title: "AI Management Summary",
@@ -1138,9 +1191,40 @@ const translations: Record<LanguageKey, Translations> = {
       historyTitle: "Change History",
       historyDescription: "Every upload and manual entry is logged with timestamp, record counts, and usage references.",
       noHistory: "No history yet.",
+      noChangesRecorded: "No changes have been recorded yet.",
+      duplicates: "duplicates",
       files: "Files:",
       summary: "Summary:",
       notes: "Notes:",
+      filtersLabel: "Filters:",
+      recordTypeLabel: "Record Type",
+      changeTypeLabel: "Change Type",
+      recordTypeAll: "All Types",
+      recordTypeComplaint: "Complaints",
+      recordTypeDelivery: "Deliveries",
+      recordTypePpap: "PPAP",
+      recordTypeDeviation: "Deviations",
+      changeTypeAll: "All Changes",
+      changeTypeConversion: "Conversion",
+      changeTypeManualEdit: "Manual Edit",
+      changeTypeCorrection: "Correction",
+      changeTypeBulkAction: "Bulk Action",
+      changeTypeNewEntry: "New Entry",
+      changeTypeFileUpload: "File Upload",
+      changeTypeDuplicate: "Duplicate",
+      filterByIdPlaceholder: "Filter by ID...",
+      filterByEditorPlaceholder: "Filter by editor...",
+      clearFiltersButton: "Clear",
+      exportButton: "Export",
+      showingXOfYChanges: "Showing {count} of {total} change(s)",
+      recordedBy: "Recorded By:",
+      recordIdLabel: "Record ID:",
+      fieldLabel: "Field:",
+      reasonLabel: "Reason:",
+      impactLabel: "Impact:",
+      metricsLabel: "Metrics:",
+      visualizationsLabel: "Visualizations:",
+      pagesLabel: "Pages:",
     },
   },
   de: {
@@ -1185,6 +1269,9 @@ const translations: Record<LanguageKey, Translations> = {
       change: "Änderung",
       defective: "Defekt",
       average: "Durchschnitt",
+      periodMode12mb: "12 Monate zurück (12MB)",
+      periodModeYtd: "Jahr bis heute (YTD)",
+      showingYtdFromJanuary: "YTD von Januar",
     },
     header: {
       title: "QOS ET Qualitätsbericht",
@@ -1251,6 +1338,13 @@ const translations: Record<LanguageKey, Translations> = {
       customerPpmTrend: "Kunden-PPM Trend",
       supplierPpmTrend: "Lieferanten-PPM Trend",
       monthlyTrend: "Monatlicher Trend",
+      filterWarningTitle: "Dashboard-Daten werden durch Filter ausgeblendet",
+      filterWarningDescription: "Ihre aktuelle Filterauswahl schließt",
+      filterWarningReset: "Filter zurücksetzen",
+      filterWarningExcludesAll: "Kunde (Q1) und Lieferant (Q2)",
+      filterWarningExcludesCustomer: "Kunde (Q1)",
+      filterWarningExcludesSupplier: "Lieferant (Q2)",
+      filterWarningMakesZero: "Benachrichtigungen aus. Dadurch erscheinen Reklamationen/Defekte/PPM als 0 oder N/V, auch wenn Uploads erfolgreich waren.",
     },
     aiSummary: {
       title: "KI-Management-Zusammenfassung",
@@ -1740,9 +1834,40 @@ const translations: Record<LanguageKey, Translations> = {
       historyTitle: "Änderungsverlauf",
       historyDescription: "Jeder Upload und manuelle Eintrag wird mit Zeitstempel, Datensatzzählungen und Verwendungsreferenzen protokolliert.",
       noHistory: "Noch kein Verlauf.",
+      noChangesRecorded: "Es wurden noch keine Änderungen erfasst.",
+      duplicates: "Duplikate",
       files: "Dateien:",
       summary: "Zusammenfassung:",
       notes: "Hinweise:",
+      filtersLabel: "Filter:",
+      recordTypeLabel: "Datensatztyp",
+      changeTypeLabel: "Änderungstyp",
+      recordTypeAll: "Alle Typen",
+      recordTypeComplaint: "Reklamationen",
+      recordTypeDelivery: "Lieferungen",
+      recordTypePpap: "PPAP",
+      recordTypeDeviation: "Abweichungen",
+      changeTypeAll: "Alle Änderungen",
+      changeTypeConversion: "Konvertierung",
+      changeTypeManualEdit: "Manuelle Bearbeitung",
+      changeTypeCorrection: "Korrektur",
+      changeTypeBulkAction: "Massenaktion",
+      changeTypeNewEntry: "Neuer Eintrag",
+      changeTypeFileUpload: "Datei-Upload",
+      changeTypeDuplicate: "Duplikat",
+      filterByIdPlaceholder: "Nach ID filtern...",
+      filterByEditorPlaceholder: "Nach Bearbeiter filtern...",
+      clearFiltersButton: "Zurücksetzen",
+      exportButton: "Exportieren",
+      showingXOfYChanges: "{count} von {total} Änderung(en)",
+      recordedBy: "Erfasst von:",
+      recordIdLabel: "Datensatz-ID:",
+      fieldLabel: "Feld:",
+      reasonLabel: "Grund:",
+      impactLabel: "Auswirkung:",
+      metricsLabel: "Metriken:",
+      visualizationsLabel: "Visualisierungen:",
+      pagesLabel: "Seiten:",
     },
   },
   it: {
@@ -1788,6 +1913,9 @@ const translations: Record<LanguageKey, Translations> = {
       change: "Cambiamento",
       defective: "Difettoso",
       average: "Media",
+      periodMode12mb: "12 mesi indietro (12MB)",
+      periodModeYtd: "Anno a oggi (YTD)",
+      showingYtdFromJanuary: "YTD da gennaio",
     },
     header: {
       title: "Rapporto Qualità QOS ET",
@@ -1854,6 +1982,14 @@ const translations: Record<LanguageKey, Translations> = {
       customerPpmTrend: "Trend PPM Cliente",
       supplierPpmTrend: "Trend PPM Fornitore",
       monthlyTrend: "Trend Mensile",
+      filterWarningTitle: "I dati della dashboard sono nascosti dai filtri",
+      filterWarningDescription: "La selezione filtri attuale esclude",
+      filterWarningReset: "Reimposta filtri",
+      filterWarningExcludesAll: "Cliente (Q1) e Fornitore (Q2)",
+      filterWarningExcludesCustomer: "Cliente (Q1)",
+      filterWarningExcludesSupplier: "Fornitore (Q2)",
+      filterWarningMakesZero: "notifiche. Reclami/difetti/PPM appariranno 0 o N/D anche con caricamenti riusciti.",
+      metricsForSelectedSitesOnly: "Le metriche sono solo per gli impianti selezionati. Cancella il filtro impianti per vedere i totali di tutti gli impianti (come nel riepilogo upload).",
     },
     aiSummary: {
       title: "Riepilogo Gestione AI",
@@ -2343,9 +2479,40 @@ const translations: Record<LanguageKey, Translations> = {
       historyTitle: "Cronologia Modifiche",
       historyDescription: "Ogni caricamento e voce manuale viene registrato con timestamp, conteggi record e riferimenti di utilizzo.",
       noHistory: "Nessuna cronologia ancora.",
+      noChangesRecorded: "Nessuna modifica registrata ancora.",
+      duplicates: "duplicati",
       files: "File:",
       summary: "Riepilogo:",
       notes: "Note:",
+      filtersLabel: "Filtri:",
+      recordTypeLabel: "Tipo record",
+      changeTypeLabel: "Tipo modifica",
+      recordTypeAll: "Tutti i tipi",
+      recordTypeComplaint: "Reclami",
+      recordTypeDelivery: "Consegne",
+      recordTypePpap: "PPAP",
+      recordTypeDeviation: "Deviazioni",
+      changeTypeAll: "Tutte le modifiche",
+      changeTypeConversion: "Conversione",
+      changeTypeManualEdit: "Modifica manuale",
+      changeTypeCorrection: "Correzione",
+      changeTypeBulkAction: "Azione bulk",
+      changeTypeNewEntry: "Nuova voce",
+      changeTypeFileUpload: "Caricamento file",
+      changeTypeDuplicate: "Duplicato",
+      filterByIdPlaceholder: "Filtra per ID...",
+      filterByEditorPlaceholder: "Filtra per editore...",
+      clearFiltersButton: "Cancella",
+      exportButton: "Esporta",
+      showingXOfYChanges: "Mostra {count} di {total} modifica/he",
+      recordedBy: "Registrato da:",
+      recordIdLabel: "ID record:",
+      fieldLabel: "Campo:",
+      reasonLabel: "Motivo:",
+      impactLabel: "Impatto:",
+      metricsLabel: "Metriche:",
+      visualizationsLabel: "Visualizzazioni:",
+      pagesLabel: "Pagine:",
     },
   },
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -24,6 +24,7 @@ export function AuditManagementClient() {
   const { monthlySiteKpis } = useKpiData();
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [periodMode, setPeriodMode] = useState<"12mb" | "ytd">("12mb");
   // Use global filter hook for persistent filters across pages
   const [filters, setFilters] = useGlobalFilters();
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -37,8 +38,8 @@ export function AuditManagementClient() {
   } | undefined>(undefined);
 
   const monthNames = useMemo(
-    () => ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-    []
+    () => t.common.months,
+    [t]
   );
 
   const availableMonthsYears = useMemo(() => {
@@ -58,6 +59,12 @@ export function AuditManagementClient() {
       lastMonthYear: sorted.length > 0 ? sorted[sorted.length - 1] : null,
     };
   }, [monthlySiteKpis]);
+
+  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const withPeriodTitle = useCallback(
+    (title: string) => title.replace(/\bYTD\b/g, periodLabel),
+    [periodLabel]
+  );
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
@@ -93,7 +100,7 @@ export function AuditManagementClient() {
       <div className="flex-1 space-y-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">{t.auditManagement.title}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{withPeriodTitle(t.auditManagement.title)}</h1>
             {selectedMonth !== null && selectedYear !== null && (
               <div className="flex items-center gap-2">
                 <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(Number(v))}>
@@ -120,19 +127,33 @@ export function AuditManagementClient() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as "12mb" | "ytd")}>
+                  <SelectTrigger className="min-w-[240px] w-auto h-auto py-1 px-2 text-3xl font-bold tracking-tight border-none bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 hover:bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12mb">12 Months Back (12MB)</SelectItem>
+                    <SelectItem value="ytd">Year to Date (YTD)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
           <p className="text-muted-foreground mt-2">Internal Performance • Audit Management</p>
-          {selectedMonth !== null && selectedYear !== null && (
+          {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
               Showing 12-month lookback from {monthNames[selectedMonth - 1]} {selectedYear} ({lookbackPeriod.startMonthStr} to {lookbackPeriod.endMonthStr})
+            </p>
+          )}
+          {selectedMonth !== null && selectedYear !== null && periodMode === "ytd" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t.common.showingYtdFromJanuary} {selectedYear} {t.common.to} {monthNames[selectedMonth - 1]} {selectedYear}.
             </p>
           )}
         </div>
 
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">YTD Audit Metrics</h2>
+          <h2 className="text-lg font-semibold text-foreground">{withPeriodTitle("YTD Audit Metrics")}</h2>
           <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-stretch">
             <div className="space-y-4">
               <Card className="glass-card-glow" style={{ borderColor: "#9E9E9E", borderWidth: "2px" }}>

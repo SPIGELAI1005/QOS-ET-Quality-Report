@@ -39,3 +39,5 @@ next-env.d.ts
 attachments/~$*
 *.tmp
 
+
+/lib/generated/prisma
