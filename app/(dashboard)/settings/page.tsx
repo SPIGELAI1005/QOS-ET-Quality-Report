@@ -226,11 +226,10 @@ function DataMigrationTab() {
     setResult(null);
 
     try {
-      // Read from local storage
+      // Read from local storage (API route uses getComplaintRepo on the server)
       const { getAllComplaints } = await import("@/lib/data/datasets-idb");
       const { importComplaints } = await import("@/lib/api/complaints-import");
-      const { getComplaintRepo } = await import("@/lib/repo");
-      
+
       const localComplaints = await getAllComplaints();
       
       if (localComplaints.length === 0) {
