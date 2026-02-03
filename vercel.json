@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
+  "env": {
+    "PRISMA_CLIENT_ENGINE_TYPE": "binary"
+  },
   "installCommand": "pnpm install",
   "buildCommand": "pnpm run build"
 }
