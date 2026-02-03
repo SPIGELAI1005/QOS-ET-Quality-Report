@@ -520,6 +520,10 @@ export default function UploadPage() {
       const summary: Record<string, string | number> = { files: files.length };
       let dedupedComplaintsForSummary: Complaint[] = [];
       let duplicateComplaintsCount = 0;
+      
+      // Declare uploadChangeHistory early so it can be used in duplicate handling
+      const uploadChangeHistory: ChangeHistoryEntry[] = [];
+      
       let conversionStatus: Array<{
         complaintId: string;
         notificationNumber: string;
@@ -718,41 +722,39 @@ export default function UploadPage() {
 
       persistHistory([entry, ...history]);
 
-      // Create change history entry for file upload
-      const uploadChangeHistory: ChangeHistoryEntry[] = [
-        {
-          id: makeId("upload_change"),
-          timestamp: entry.uploadedAtIso,
-          editor: role === "admin" ? "Admin" : role === "editor" ? "Editor" : "System",
-          recordId: entry.id,
-          recordType:
-            section === "complaints"
-              ? "complaint"
-              : section === "deliveries"
-                ? "delivery"
-                : section === "ppap"
-                  ? "ppap"
-                  : section === "deviations"
-                    ? "deviation"
-                    : "file_upload",
-          field: "all",
-          oldValue: null,
-          newValue: summary,
-          reason: `File upload: ${files.map((f) => f.name).join(", ")}`,
-          changeType: "file_upload",
-          affectedMetrics: {
-            metrics: sectionMeta[section].usedIn,
-            visualizations: sectionMeta[section].usedIn,
-            pages: sectionMeta[section].usedIn,
-            calculations: [],
-          },
-          dataDetails: {
-            files: files.map((f) => ({ name: f.name, size: f.size })),
-            section,
-            summary,
-          },
+      // Add change history entry for file upload (uploadChangeHistory was declared earlier)
+      uploadChangeHistory.push({
+        id: makeId("upload_change"),
+        timestamp: entry.uploadedAtIso,
+        editor: role === "admin" ? "Admin" : role === "editor" ? "Editor" : "System",
+        recordId: entry.id,
+        recordType:
+          section === "complaints"
+            ? "complaint"
+            : section === "deliveries"
+              ? "delivery"
+              : section === "ppap"
+                ? "ppap"
+                : section === "deviations"
+                  ? "deviation"
+                  : "file_upload",
+        field: "all",
+        oldValue: null,
+        newValue: summary,
+        reason: `File upload: ${files.map((f) => f.name).join(", ")}`,
+        changeType: "file_upload",
+        affectedMetrics: {
+          metrics: sectionMeta[section].usedIn,
+          visualizations: sectionMeta[section].usedIn,
+          pages: sectionMeta[section].usedIn,
+          calculations: [],
         },
-      ];
+        dataDetails: {
+          files: files.map((f) => ({ name: f.name, size: f.size })),
+          section,
+          summary,
+        },
+      });
 
       // Create and save upload summary for complaints
       if (section === "complaints" && conversionStatus.length > 0) {
