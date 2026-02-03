@@ -1345,6 +1345,7 @@ const translations: Record<LanguageKey, Translations> = {
       filterWarningExcludesCustomer: "Kunde (Q1)",
       filterWarningExcludesSupplier: "Lieferant (Q2)",
       filterWarningMakesZero: "Benachrichtigungen aus. Dadurch erscheinen Reklamationen/Defekte/PPM als 0 oder N/V, auch wenn Uploads erfolgreich waren.",
+      metricsForSelectedSitesOnly: "Metriken gelten nur für die ausgewählten Werke. Pflanzenfilter zurücksetzen, um Summen für alle Werke (wie im Upload) zu sehen.",
     },
     aiSummary: {
       title: "KI-Management-Zusammenfassung",
