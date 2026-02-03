@@ -138,8 +138,8 @@ export interface UpdateComplaintInput {
  * Database-backed Complaint entity (includes metadata)
  */
 export interface ComplaintEntity extends Complaint {
-  userId?: string;
-  tenantId?: string;
+  userId?: string | null;
+  tenantId?: string | null;
   conversionJson?: string | null;
   createdAt: Date;
   updatedAt: Date;
