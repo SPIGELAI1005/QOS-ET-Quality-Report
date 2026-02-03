@@ -7,6 +7,12 @@
 
 import { PrismaClient } from "@prisma/client";
 
+// Force Prisma to use the binary engine unless explicitly configured otherwise.
+// This avoids the "client" engine adapter requirement on Vercel.
+if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = "binary";
+}
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
