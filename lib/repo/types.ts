@@ -140,6 +140,7 @@ export interface UpdateComplaintInput {
 export interface ComplaintEntity extends Complaint {
   userId?: string;
   tenantId?: string;
+  conversionJson?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
