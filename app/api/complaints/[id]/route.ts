@@ -11,7 +11,17 @@ import { getComplaintRepo } from "@/lib/repo";
 import { getRequestContext } from "@/lib/api/context";
 import { success, error, validationError, notFoundError, internalError } from "@/lib/api/response";
 import { validateUpdateComplaint } from "@/lib/repo/validation";
+import type { UpdateComplaintInput } from "@/lib/repo/types";
 import { z } from "zod";
+
+/** Convert null to undefined so validated output matches UpdateComplaintInput */
+function toUpdateInput(validated: Record<string, unknown>): UpdateComplaintInput {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(validated)) {
+    out[k] = v === null ? undefined : v;
+  }
+  return out as UpdateComplaintInput;
+}
 
 /**
  * GET /api/complaints/[id]
@@ -85,8 +95,8 @@ export async function PATCH(
       throw validationErr;
     }
 
-    // Update complaint
-    const updated = await repo.update(id, validated);
+    // Update complaint (sanitize null -> undefined for UpdateComplaintInput)
+    const updated = await repo.update(id, toUpdateInput(validated));
 
     return NextResponse.json(success(updated));
   } catch (err) {
