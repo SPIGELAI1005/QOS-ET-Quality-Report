@@ -14,6 +14,9 @@ import { validateUpdateComplaint } from "@/lib/repo/validation";
 import type { UpdateComplaintInput } from "@/lib/repo/types";
 import { z } from "zod";
 
+// Force Node.js runtime (Prisma is not supported on the Edge runtime)
+export const runtime = "nodejs";
+
 /** Convert null to undefined so validated output matches UpdateComplaintInput */
 function toUpdateInput(validated: Record<string, unknown>): UpdateComplaintInput {
   const out: Record<string, unknown> = {};

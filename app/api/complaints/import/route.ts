@@ -13,6 +13,9 @@ import { success, error, validationError, internalError } from "@/lib/api/respon
 import { validateCreateComplaint, createComplaintSchema } from "@/lib/repo/validation";
 import { z } from "zod";
 
+// Force Node.js runtime (Prisma is not supported on the Edge runtime)
+export const runtime = "nodejs";
+
 /**
  * Import request body schema
  */
