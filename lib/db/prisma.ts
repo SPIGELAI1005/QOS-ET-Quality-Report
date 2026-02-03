@@ -3,12 +3,12 @@
  * 
  * Handles hot reload in development by creating a global instance.
  * Prevents multiple Prisma Client instances during Next.js hot reloads.
+ * 
+ * Note: Engine type is configured in prisma/schema.prisma (engineType = "library")
+ * to ensure compatibility with Vercel deployments.
  */
 
 import { PrismaClient } from "@prisma/client";
-
-// Force Prisma to use the binary engine to avoid the client adapter requirement on Vercel.
-process.env.PRISMA_CLIENT_ENGINE_TYPE = "binary";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
