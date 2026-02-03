@@ -9,15 +9,15 @@ import type {
   IComplaintRepository,
   CreateComplaintInput,
   UpdateComplaintInput,
-  ComplaintEntity,
 } from "../types";
+import type { Complaint as PrismaComplaint } from "@prisma/client";
 import type { Complaint } from "@/lib/domain/types";
 import { NotificationCategory } from "@/lib/domain/types";
 
 /**
  * Convert Prisma model to domain Complaint
  */
-function toComplaint(entity: ComplaintEntity): Complaint {
+function toComplaint(entity: PrismaComplaint): Complaint {
   return {
     id: entity.id,
     notificationNumber: entity.notificationNumber,
