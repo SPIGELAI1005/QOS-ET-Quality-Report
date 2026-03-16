@@ -31,6 +31,7 @@ import { useKpiData } from "@/lib/data/useKpiData";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getPlantColorHex, getNotificationTypeColor, getBarAnimation } from "@/lib/utils/chartColors";
 import { ExternalLink, FileSpreadsheet, Info, Package, RefreshCw } from "lucide-react";
+import { applySinglePlantTitle, getSingleSelectedPlantLabel } from "@/lib/utils/plantTitle";
 
 interface PlantData {
   code: string;
@@ -216,26 +217,26 @@ export function CostPoorQualityClient() {
     };
   }, [kpis]);
 
-  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const periodLabel = periodMode === "ytd" ? "YTD" : "R12M";
   const withPeriodTitle = useCallback(
     (title: string) => title.replace(/\bYTD\b/g, periodLabel),
     [periodLabel]
   );
+  const singleSelectedPlantLabel = useMemo(
+    () => getSingleSelectedPlantLabel(effectiveFilters.selectedPlants, plantsData),
+    [effectiveFilters.selectedPlants, plantsData]
+  );
+  const withScopedPlantTitle = useCallback(
+    (title: string) => applySinglePlantTitle(withPeriodTitle(title), singleSelectedPlantLabel),
+    [withPeriodTitle, singleSelectedPlantLabel]
+  );
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
-    if (availableMonthsYears.lastMonthYear) {
-      const [y, m] = availableMonthsYears.lastMonthYear.split("-").map(Number);
-      if (y && m) {
-        setSelectedYear(y);
-        setSelectedMonth(m);
-        return;
-      }
-    }
-    // Fallback if no data loaded yet
-    setSelectedYear(2025);
-    setSelectedMonth(12);
-  }, [selectedMonth, selectedYear, availableMonthsYears.lastMonthYear]);
+    const now = new Date();
+    setSelectedYear(now.getFullYear());
+    setSelectedMonth(now.getMonth() + 1);
+  }, [selectedMonth, selectedYear]);
 
   const lookbackPeriod = useMemo(() => {
     if (selectedMonth === null || selectedYear === null) {
@@ -250,6 +251,25 @@ export function CostPoorQualityClient() {
     start.setMonth(start.getMonth() - 11);
     return { start, end, startMonthStr: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`, endMonthStr: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}` };
   }, [selectedMonth, selectedYear]);
+
+  const rolling12MonthKeys = useMemo(() => {
+    const months: string[] = [];
+    const cursor = new Date(lookbackPeriod.start.getFullYear(), lookbackPeriod.start.getMonth(), 1);
+    const end = new Date(lookbackPeriod.end.getFullYear(), lookbackPeriod.end.getMonth(), 1);
+    while (cursor <= end) {
+      months.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return months;
+  }, [lookbackPeriod.start, lookbackPeriod.end]);
+
+  const getDisplayMonths = useCallback(
+    (availableMonths: string[]) => {
+      if (periodMode === "12mb") return rolling12MonthKeys;
+      return Array.from(new Set(availableMonths)).sort();
+    },
+    [periodMode, rolling12MonthKeys]
+  );
 
   useEffect(() => {
     fetch("/api/plants")
@@ -300,9 +320,9 @@ export function CostPoorQualityClient() {
       const monthRow = byMonth.get(kpi.month)!;
       monthRow[plantCode] = (monthRow[plantCode] || 0) + (kpi.internalComplaintsQ3 || 0);
     }
-    const months = Array.from(byMonth.keys()).sort();
-    return months.map((month) => ({ month, ...byMonth.get(month)! }));
-  }, [filteredKpis, allowedPlantCodes]);
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
+    return months.map((month) => ({ month, ...(byMonth.get(month) || {}) }));
+  }, [filteredKpis, allowedPlantCodes, getDisplayMonths]);
 
   const internalPlantsWithComplaints = useMemo(() => {
     // Only show plants that have actual internal complaints in the current (global) filter.
@@ -345,9 +365,9 @@ export function CostPoorQualityClient() {
       const monthRow = byMonth.get(kpi.month)!;
       monthRow[plantCode] = (monthRow[plantCode] || 0) + (kpi.internalDefectiveParts || 0);
     }
-    const months = Array.from(byMonth.keys()).sort();
-    return months.map((month) => ({ month, ...byMonth.get(month)! }));
-  }, [filteredKpis, allowedPlantCodes]);
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
+    return months.map((month) => ({ month, ...(byMonth.get(month) || {}) }));
+  }, [filteredKpis, allowedPlantCodes, getDisplayMonths]);
 
   const internalDefectsByMonthPlantWithTotal = useMemo(() => {
     const scopeCodes = (filters.selectedPlants.length > 0 ? filters.selectedPlants : Array.from(allowedPlantCodes)).filter(
@@ -475,9 +495,9 @@ export function CostPoorQualityClient() {
           <p className="text-muted-foreground mt-2">Cost Performance • Poor Quality Costs</p>
           {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
-              Showing 12-month lookback from {monthNames[selectedMonth - 1]} {selectedYear}
+              {t.dashboard.showing12MonthLookback} {monthNames[selectedMonth - 1]} {selectedYear}
               {lookbackPeriod.startMonthStr !== lookbackPeriod.endMonthStr && (
-                <> ({lookbackPeriod.startMonthStr} to {lookbackPeriod.endMonthStr})</>
+                <> ({lookbackPeriod.startMonthStr} {t.common.to} {lookbackPeriod.endMonthStr})</>
               )}
             </p>
           )}
@@ -613,7 +633,7 @@ export function CostPoorQualityClient() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{withPeriodTitle("YTD Total Number of Internal Notifications by Month and Plant")}</CardTitle>
+                <CardTitle>{withScopedPlantTitle("YTD Total Number of Internal Notifications by Month and Plant")}</CardTitle>
                 <CardDescription>Internal complaints (Q3) by month and plant (fixed filter)</CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -631,7 +651,7 @@ export function CostPoorQualityClient() {
                 <IAmQButton
                   onClick={() => {
                     setChartContext({
-                      title: withPeriodTitle("YTD Total Number of Internal Notifications by Month and Plant"),
+                      title: withScopedPlantTitle("YTD Total Number of Internal Notifications by Month and Plant"),
                       description: "Internal complaints (Q3) by month and plant (fixed filter)",
                       chartType: "bar",
                       dataType: "notifications",
@@ -712,13 +732,13 @@ export function CostPoorQualityClient() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{withPeriodTitle("YTD Total Number of Internal Defects by Month and Plant")}</CardTitle>
+                <CardTitle>{withScopedPlantTitle("YTD Total Number of Internal Defects by Month and Plant")}</CardTitle>
                 <CardDescription>Defective parts from internal complaints (Q3) by month and plant</CardDescription>
               </div>
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: withPeriodTitle("YTD Total Number of Internal Defects by Month and Plant"),
+                    title: withScopedPlantTitle("YTD Total Number of Internal Defects by Month and Plant"),
                     description: "Defective parts from internal complaints (Q3) by month and plant",
                     chartType: "bar",
                     dataType: "defects",
@@ -865,13 +885,13 @@ export function CostPoorQualityClient() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>{withPeriodTitle(`YTD ${title} by Month and Plant`)}</CardTitle>
+                      <CardTitle>{withScopedPlantTitle(`YTD ${title} by Month and Plant`)}</CardTitle>
                       <CardDescription>No data connected yet</CardDescription>
                     </div>
                     <IAmQButton
                       onClick={() => {
                         setChartContext({
-                          title: withPeriodTitle(`YTD ${title} by Month and Plant`),
+                          title: withScopedPlantTitle(`YTD ${title} by Month and Plant`),
                           description: "No data connected yet",
                           chartType: "bar",
                           dataType: "costs",

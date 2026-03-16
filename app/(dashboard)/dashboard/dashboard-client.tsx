@@ -89,6 +89,7 @@ import {
   PIE_ANIMATION,
   getStaggeredAnimation,
 } from "@/lib/utils/chartColors";
+import { applySinglePlantTitle, getSingleSelectedPlantLabel } from "@/lib/utils/plantTitle";
 
 interface DashboardClientProps {
   monthlySiteKpis?: MonthlySiteKpi[];
@@ -633,21 +634,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
 
   // Initialize selected month/year to last available month in data, or January 2026 if no data
   useEffect(() => {
-    if (selectedMonth === null || selectedYear === null) {
-      // If we have data, default to the last available month
-      if (availableMonthsYears.lastMonthYear) {
-        const [year, month] = availableMonthsYears.lastMonthYear.split('-').map(Number);
-        setSelectedYear(year);
-        setSelectedMonth(month);
-        console.log('[Dashboard] Initialized to last available month:', year, month);
-      } else {
-        // Default to January 2026 if no data
-        setSelectedYear(2026);
-        setSelectedMonth(1);
-        console.log('[Dashboard] No data available, defaulting to January 2026');
-      }
-    }
-  }, [selectedMonth, selectedYear, availableMonthsYears.lastMonthYear]);
+    if (selectedMonth !== null && selectedYear !== null) return;
+    const now = new Date();
+    setSelectedYear(now.getFullYear());
+    setSelectedMonth(now.getMonth() + 1);
+  }, [selectedMonth, selectedYear]);
 
   // Calculate total sites from all KPIs (unfiltered)
   // Total ET Sites is 22
@@ -680,6 +671,25 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       endMonthStr: `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}`,
     };
   }, [selectedMonth, selectedYear]);
+
+  const rolling12MonthKeys = useMemo(() => {
+    const months: string[] = [];
+    const cursor = new Date(lookbackPeriod.start.getFullYear(), lookbackPeriod.start.getMonth(), 1);
+    const end = new Date(lookbackPeriod.end.getFullYear(), lookbackPeriod.end.getMonth(), 1);
+    while (cursor <= end) {
+      months.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return months;
+  }, [lookbackPeriod.start, lookbackPeriod.end]);
+
+  const getDisplayMonths = useCallback(
+    (availableMonths: string[]) => {
+      if (periodMode === "12mb") return rolling12MonthKeys;
+      return Array.from(new Set(availableMonths)).sort();
+    },
+    [periodMode, rolling12MonthKeys]
+  );
 
   // Filter KPIs by selected sites, filter panel filters, AND 12-month lookback period
   const filteredKpis = useMemo(() => {
@@ -1539,7 +1549,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData[kpi.siteCode] = (monthData[kpi.siteCode] || 0) + total;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     return months.map((month) => {
       const data: Record<string, any> = { month: month };
       const monthData = byMonth.get(month);
@@ -1557,7 +1567,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       data.total = total;
       return data;
     });
-  }, [filteredKpis, filters.selectedPlants, selectedNotificationTypes, selectedPlantForChart, isCustomerView, isSupplierView]);
+  }, [filteredKpis, filters.selectedPlants, selectedNotificationTypes, selectedPlantForChart, isCustomerView, isSupplierView, getDisplayMonths]);
 
   // Calculate maximum Y-axis value from unfiltered data (all available plants)
   // This ensures the Y-axis scale stays constant when filtering by plant
@@ -1597,7 +1607,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData[kpi.siteCode] = (monthData[kpi.siteCode] || 0) + total;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     const allTotals = months.map((month) => {
       const monthData = byMonth.get(month);
       let total = 0;
@@ -1620,7 +1630,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     if (maxTotal === 0) return 100;
     const rounded = Math.ceil(maxTotal / 20) * 20; // Round to nearest 20
     return Math.max(rounded, 100); // Minimum of 100
-  }, [filteredKpis, filters.selectedPlants, selectedNotificationTypes, isCustomerView, isSupplierView]);
+  }, [filteredKpis, filters.selectedPlants, selectedNotificationTypes, isCustomerView, isSupplierView, getDisplayMonths]);
 
   // Aggregate defects data by month and plant
   const defectsByMonthPlant = useMemo(() => {
@@ -1668,7 +1678,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData[kpi.siteCode] = (monthData[kpi.siteCode] || 0) + defects;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     return months.map((month) => {
       const data: Record<string, any> = { month: month };
       const monthData = byMonth.get(month);
@@ -1686,7 +1696,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       data.total = total;
       return data;
     });
-  }, [filteredKpis, filters.selectedPlants, selectedDefectType, selectedPlantForDefectsChart, isCustomerView, isSupplierView]);
+  }, [filteredKpis, filters.selectedPlants, selectedDefectType, selectedPlantForDefectsChart, isCustomerView, isSupplierView, getDisplayMonths]);
 
   // Calculate maximum Y-axis value for defects chart from unfiltered data
   const maxYAxisValueDefects = useMemo(() => {
@@ -1721,7 +1731,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData[kpi.siteCode] = (monthData[kpi.siteCode] || 0) + defects;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     const allTotals = months.map((month) => {
       const monthData = byMonth.get(month);
       let total = 0;
@@ -1739,7 +1749,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
     if (maxTotal === 0) return 1000;
     const rounded = Math.ceil(maxTotal / 100) * 100; // Round to nearest 100 for defects
     return Math.max(rounded, 1000); // Minimum of 1000
-  }, [filteredKpis, filters.selectedPlants, selectedDefectType, isCustomerView, isSupplierView]);
+  }, [filteredKpis, filters.selectedPlants, selectedDefectType, isCustomerView, isSupplierView, getDisplayMonths]);
 
   // All available sites for the defects chart (before local legend filter)
   const availableChartSitesDefects = useMemo(() => {
@@ -1788,9 +1798,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData.P += kpi.ppapP.inProgress + kpi.ppapP.completed;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     return months.map((month) => {
-      const monthData = byMonth.get(month)!;
+      const monthData = byMonth.get(month) ?? { Q1: 0, Q2: 0, Q3: 0, D: 0, P: 0 };
       // Calculate total for label display (only selected Q1, Q2, Q3) - force Q1 in customer view or use legend filter
       const total = (effectiveNotificationTypes.has("Q1") ? (monthData.Q1 || 0) : 0) +
                     (effectiveNotificationTypes.has("Q2") ? (monthData.Q2 || 0) : 0) +
@@ -1801,7 +1811,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         total,
       };
     });
-  }, [filteredKpis, selectedNotificationTypes, isCustomerView, isSupplierView, selectedNotificationTypeForChart]);
+  }, [filteredKpis, selectedNotificationTypes, isCustomerView, isSupplierView, selectedNotificationTypeForChart, getDisplayMonths]);
 
   // Customer PPM Trend Data with configurable average period
   // Calculate PPM the same way as metrics: aggregate defective parts and deliveries per month, then calculate PPM
@@ -1818,12 +1828,12 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData.totalDeliveries += kpi.customerDeliveries || 0;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     const period = parseInt(customerPpmAveragePeriod);
     
     // Calculate PPM for each month using the same formula as metrics
     const monthlyPpmData = months.map((month) => {
-      const data = byMonth.get(month)!;
+      const data = byMonth.get(month) ?? { totalDefective: 0, totalDeliveries: 0, ppm: 0 };
       // PPM = (total defective / total deliveries) * 1,000,000
       const ppm = data.totalDeliveries > 0 
         ? (data.totalDefective / data.totalDeliveries) * 1_000_000 
@@ -1859,7 +1869,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         averageTarget: periodAvg,
       };
     });
-  }, [filteredKpis, customerPpmAveragePeriod]);
+  }, [filteredKpis, customerPpmAveragePeriod, getDisplayMonths]);
 
   const ppmTrendData = useMemo(() => {
     const byMonth = new Map<string, { ppm: number; count: number }>();
@@ -1875,9 +1885,9 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       }
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     return months.map((month) => {
-      const data = byMonth.get(month)!;
+      const data = byMonth.get(month) ?? { ppm: 0, count: 0 };
       const avgPpm = data.count > 0 ? data.ppm / data.count : 0;
       
       // Calculate 3-month average
@@ -1898,7 +1908,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         threeMonthAvg,
       };
     });
-  }, [filteredKpis]);
+  }, [filteredKpis, getDisplayMonths]);
 
   // Monthly Trend Table - Use same calculation as Customer PPM chart
   const monthlyTrendTable = useMemo(() => {
@@ -1917,14 +1927,14 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData.totalDeliveries += kpi.customerDeliveries || 0;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     let prevPpm: number | null = null;
     let prevDefective: number | null = null;
     let prevDeliveries: number | null = null;
 
     // Calculate PPM for each month first
     const monthlyPpmData = months.map((month) => {
-      const data = byMonth.get(month)!;
+      const data = byMonth.get(month) ?? { totalDefective: 0, totalDeliveries: 0 };
       // Calculate PPM the same way as the chart: (total defective / total deliveries) * 1,000,000
       const ppm = data.totalDeliveries > 0 
         ? (data.totalDefective / data.totalDeliveries) * 1_000_000 
@@ -1979,7 +1989,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         deliveriesChange,
       };
     });
-  }, [filteredKpis]);
+  }, [filteredKpis, getDisplayMonths]);
 
   // Customer PPM Site Contribution per Month
   const customerPpmSiteContribution = useMemo(() => {
@@ -2011,7 +2021,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData.deliveries += kpi.customerDeliveries || 0;
     });
 
-    const sortedMonths = Array.from(months).sort();
+    const sortedMonths = getDisplayMonths(Array.from(months));
     const sortedSites = Array.from(bySiteMonth.keys()).sort();
     
     // Get site names and locations from official plants file
@@ -2196,12 +2206,12 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData.totalDeliveries += kpi.supplierDeliveries || 0;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     const period = parseInt(supplierPpmAveragePeriod);
     
     // Calculate PPM for each month using the same formula as metrics
     const monthlyPpmData = months.map((month) => {
-      const data = byMonth.get(month)!;
+      const data = byMonth.get(month) ?? { totalDefective: 0, totalDeliveries: 0, ppm: 0 };
       // PPM = (total defective / total deliveries) * 1,000,000
       const ppm = data.totalDeliveries > 0 
         ? (data.totalDefective / data.totalDeliveries) * 1_000_000 
@@ -2237,7 +2247,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         averageTarget: periodAvg,
       };
     });
-  }, [filteredKpis, supplierPpmAveragePeriod]);
+  }, [filteredKpis, supplierPpmAveragePeriod, getDisplayMonths]);
 
   // Supplier Monthly Trend Table
   const supplierMonthlyTrendTable = useMemo(() => {
@@ -2256,14 +2266,14 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData.totalDeliveries += kpi.supplierDeliveries || 0;
     });
 
-    const months = Array.from(byMonth.keys()).sort();
+    const months = getDisplayMonths(Array.from(byMonth.keys()));
     let prevPpm: number | null = null;
     let prevDefective: number | null = null;
     let prevDeliveries: number | null = null;
 
     // Calculate PPM for each month first
     const monthlyPpmData = months.map((month) => {
-      const data = byMonth.get(month)!;
+      const data = byMonth.get(month) ?? { totalDefective: 0, totalDeliveries: 0 };
       // Calculate PPM the same way as the chart: (total defective / total deliveries) * 1,000,000
       const ppm = data.totalDeliveries > 0 
         ? (data.totalDefective / data.totalDeliveries) * 1_000_000 
@@ -2318,7 +2328,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
         deliveriesChange,
       };
     });
-  }, [filteredKpis, plantsData]);
+  }, [filteredKpis, plantsData, getDisplayMonths]);
 
   // Supplier PPM Site Contribution per Month
   const supplierPpmSiteContribution = useMemo(() => {
@@ -2350,7 +2360,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
       monthData.deliveries += kpi.supplierDeliveries || 0;
     });
 
-    const sortedMonths = Array.from(months).sort();
+    const sortedMonths = getDisplayMonths(Array.from(months));
     const sortedSites = Array.from(bySiteMonth.keys()).sort();
     
     // Get site names and locations from official plants file
@@ -2428,8 +2438,16 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
   // Get month name for display
   const monthNames = t.common.months;
   const selectedMonthName = selectedMonth !== null ? monthNames[selectedMonth - 1] : '';
-  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const periodLabel = periodMode === "ytd" ? "YTD" : "R12M";
   const withPeriodTitle = useCallback((title: string) => title.replace(/\bYTD\b/g, periodLabel), [periodLabel]);
+  const singleSelectedPlantLabel = useMemo(
+    () => getSingleSelectedPlantLabel(filters.selectedPlants, plantsData),
+    [filters.selectedPlants, plantsData]
+  );
+  const withScopedPlantTitle = useCallback(
+    (title: string) => applySinglePlantTitle(withPeriodTitle(title), singleSelectedPlantLabel),
+    [withPeriodTitle, singleSelectedPlantLabel]
+  );
 
   // Enhanced Metric Tile Component
   // Helper function to format numbers in German locale (comma for decimal, dot for thousands)
@@ -3518,7 +3536,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             <div>
               <CardTitle className="flex items-center gap-2">
                 <span>
-                  {withPeriodTitle(
+                  {withScopedPlantTitle(
                     isCustomerView
                       ? t.charts.notificationsByMonth.titleCustomer
                       : isSupplierView
@@ -3649,7 +3667,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: withPeriodTitle(
+                    title: withScopedPlantTitle(
                       isCustomerView
                         ? t.charts.notificationsByMonth.titleCustomer
                         : isSupplierView
@@ -3746,7 +3764,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
             <div>
               <CardTitle className="flex items-center gap-2">
                 <span>
-                  {withPeriodTitle(
+                  {withScopedPlantTitle(
                     isCustomerView
                       ? t.charts.defectsByMonth.titleCustomer
                       : isSupplierView
@@ -3865,7 +3883,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: withPeriodTitle(
+                    title: withScopedPlantTitle(
                       isCustomerView
                         ? t.charts.defectsByMonth.titleCustomer
                         : isSupplierView
@@ -4230,7 +4248,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <span>{withPeriodTitle("YTD Cumulative Customer PPM Trend - All Sites")}</span>
+                <span>{withScopedPlantTitle("YTD Cumulative Customer PPM Trend - All Sites")}</span>
                 <TooltipProvider>
                   <UiTooltip>
                     <TooltipTrigger asChild>
@@ -4264,7 +4282,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <IAmQButton
                 onClick={() => {
                   setChartContext({
-                    title: withPeriodTitle("YTD Cumulative Customer PPM Trend - All Sites"),
+                    title: withScopedPlantTitle("YTD Cumulative Customer PPM Trend - All Sites"),
                     description: "Combined Customer PPM performance (PPM = Defective Parts / Total Deliveries × 1,000,000)",
                     chartType: "line",
                     dataType: "ppm",
@@ -4378,11 +4396,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <Card className="glass-card-glow chart-container">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>{withPeriodTitle("YTD Customer PPM Monthly Trend Analysis - All Sites")}</CardTitle>
+            <CardTitle>{withScopedPlantTitle("YTD Customer PPM Monthly Trend Analysis - All Sites")}</CardTitle>
             <IAmQButton
               onClick={() => {
                 setChartContext({
-                  title: withPeriodTitle("YTD Customer PPM Monthly Trend Analysis - All Sites"),
+                  title: withScopedPlantTitle("YTD Customer PPM Monthly Trend Analysis - All Sites"),
                   description: "Monthly Customer PPM values across all sites",
                   chartType: "table",
                   dataType: "ppm",
@@ -5016,7 +5034,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <span>{withPeriodTitle("YTD Cumulative Supplier PPM Trend - All Sites")}</span>
+                    <span>{withScopedPlantTitle("YTD Cumulative Supplier PPM Trend - All Sites")}</span>
                     <TooltipProvider>
                       <UiTooltip>
                         <TooltipTrigger asChild>
@@ -5050,7 +5068,7 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
                   <IAmQButton
                     onClick={() => {
                       setChartContext({
-                        title: withPeriodTitle("YTD Cumulative Supplier PPM Trend - All Sites"),
+                        title: withScopedPlantTitle("YTD Cumulative Supplier PPM Trend - All Sites"),
                         description: "Combined Supplier PPM performance (PPM = Defective Parts / Total Deliveries × 1,000,000)",
                         chartType: "line",
                         dataType: "ppm",
@@ -5140,11 +5158,11 @@ export function DashboardClient({ monthlySiteKpis: propsKpis = [], globalPpm: pr
           <Card className="glass-card-glow chart-container">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>{withPeriodTitle("YTD Supplier PPM Monthly Trend Analysis - All Sites")}</CardTitle>
+                <CardTitle>{withScopedPlantTitle("YTD Supplier PPM Monthly Trend Analysis - All Sites")}</CardTitle>
                 <IAmQButton
                   onClick={() => {
                     setChartContext({
-                      title: withPeriodTitle("YTD Supplier PPM Monthly Trend Analysis - All Sites"),
+                      title: withScopedPlantTitle("YTD Supplier PPM Monthly Trend Analysis - All Sites"),
                       description: "Monthly Supplier PPM values across all sites",
                       chartType: "table",
                       dataType: "ppm",

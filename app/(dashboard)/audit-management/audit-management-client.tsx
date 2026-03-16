@@ -60,7 +60,7 @@ export function AuditManagementClient() {
     };
   }, [monthlySiteKpis]);
 
-  const periodLabel = periodMode === "ytd" ? "YTD" : "12MB";
+  const periodLabel = periodMode === "ytd" ? "YTD" : "R12M";
   const withPeriodTitle = useCallback(
     (title: string) => title.replace(/\bYTD\b/g, periodLabel),
     [periodLabel]
@@ -68,18 +68,10 @@ export function AuditManagementClient() {
 
   useEffect(() => {
     if (selectedMonth !== null && selectedYear !== null) return;
-    if (availableMonthsYears.lastMonthYear) {
-      const [y, m] = availableMonthsYears.lastMonthYear.split("-").map(Number);
-      if (y && m) {
-        setSelectedYear(y);
-        setSelectedMonth(m);
-        return;
-      }
-    }
-    // Fallback if no data loaded yet
-    setSelectedYear(2025);
-    setSelectedMonth(12);
-  }, [selectedMonth, selectedYear, availableMonthsYears.lastMonthYear]);
+    const now = new Date();
+    setSelectedYear(now.getFullYear());
+    setSelectedMonth(now.getMonth() + 1);
+  }, [selectedMonth, selectedYear]);
 
   const lookbackPeriod = useMemo(() => {
     if (selectedMonth === null || selectedYear === null) {
@@ -132,8 +124,8 @@ export function AuditManagementClient() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="12mb">12 Months Back (12MB)</SelectItem>
-                    <SelectItem value="ytd">Year to Date (YTD)</SelectItem>
+                    <SelectItem value="12mb">{t.common.periodMode12mb}</SelectItem>
+                    <SelectItem value="ytd">{t.common.periodModeYtd}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -142,7 +134,7 @@ export function AuditManagementClient() {
           <p className="text-muted-foreground mt-2">Internal Performance • Audit Management</p>
           {selectedMonth !== null && selectedYear !== null && periodMode === "12mb" && (
             <p className="text-xs text-muted-foreground mt-1">
-              Showing 12-month lookback from {monthNames[selectedMonth - 1]} {selectedYear} ({lookbackPeriod.startMonthStr} to {lookbackPeriod.endMonthStr})
+              {t.dashboard.showing12MonthLookback} {monthNames[selectedMonth - 1]} {selectedYear} ({lookbackPeriod.startMonthStr} {t.common.to} {lookbackPeriod.endMonthStr})
             </p>
           )}
           {selectedMonth !== null && selectedYear !== null && periodMode === "ytd" && (
